@@ -516,6 +516,12 @@ function load(){
 function save(){ syncOwned(); try { localStorage.setItem('oh-app-v3', JSON.stringify({lang:S.lang, picks:S.picks, mods:S.mods})); } catch(e) {} }
 const curLang = () => S.lang || 'en';
 const tx = v => typeof v === 'string' ? v : (v.k ? ui(v.k) : (v[curLang()] || v.en));
+Object.assign(UI2.en, {fbH: 'Report a mistake or suggest something', fbP: 'Found wrong data or have an idea? Write it here. Only your text, app version and language are sent.', fbPh: 'Write here…', fbBug: 'Report mistake', fbIdea: 'Send suggestion', fbDone: 'Thank you! Sent.', fbEmpty: 'Please write something first.', askBad: 'Wrong answer?'});
+if (UI2.ur) Object.assign(UI2.ur, {fbH: 'Ghalti batayein ya mashwara dein', fbP: 'Koi ghalat data mila ya koi idea hai? Yahan likhein. Sirf aap ka text, app version aur zuban bheji jati hai.', fbPh: 'Yahan likhein…', fbBug: 'Ghalti bhejein', fbIdea: 'Mashwara bhejein', fbDone: 'Shukriya! Bhej diya.', fbEmpty: 'Pehle kuch likhein.', askBad: 'Ghalat jawab?'});
+Object.assign(UI2.en, {calWork: 'How it works (game text)', calAtk: 'Attack with calibration: {d} x (1 + {p}%) = {a} (blueprint value; ammo DMG per shot +15% and star level raise it further)', calTot: 'Totals', calArmor: 'Your armor', calSet: '{s} set ({n} pieces)', calGain: 'Damage of this setup vs the bare weapon (app estimate)', calOffer: 'This build can be made stronger. Shall I show a better one? Reply "haan".', calCmp: 'Your build: {a} · Suggested build: {b} · Gain: {d} (app estimate; same weapon and calibration, same formula for both; mods you did not tell me count as empty)'});
+if (UI2.ur) Object.assign(UI2.ur, {calWork: 'Kaise kaam karta hai (game text)', calAtk: 'Calibration ke saath Attack: {d} x (1 + {p}%) = {a} (blueprint value; ammo ka +15% aur star se aur barhta hai)', calTot: 'Kul', calArmor: 'Aap ka armor', calSet: '{s} set ({n} piece)', calGain: 'Is setup ka damage, khaali weapon ke muqable mein (app ka andaza)', calOffer: 'Is build ko aur behtar banaya ja sakta hai. Batayein? "haan" likhein.', calCmp: 'Aap ki build: {a} · Nayi build: {b} · Farq: {d} (app ka andaza; same weapon aur calibration, dono par same formula; jo mods aap ne nahi bataye woh khaali gine gaye)'});
+Object.assign(UI2.en, {abCal: 'Calibration', abSets: 'Armor set', abHideSet: 'Hide set', abOpt: 'Optional rare hide', abDev: 'Deviant'});
+if (UI2.ur) Object.assign(UI2.ur, {abCal: 'Calibration', abSets: 'Armor set', abHideSet: 'Hide set', abOpt: 'Optional (mushkil se milti) hide', abDev: 'Deviant'});
 Object.assign(UI2.en, {askHelp: "I work offline, so please write a name in your question. For example:\n- SKS build\n- KVD Boom! Boom!\n- Voodoo Doll\n- Rush Hour\n- Savior Helmet\n- damage formula"});
 if (UI2.ur) Object.assign(UI2.ur, {askHelp: 'Main offline chalta hoon, is liye sawal mein kisi cheez ka naam likhein. Misaal:\n- SKS build\n- KVD Boom! Boom!\n- Voodoo Doll\n- Rush Hour\n- Savior Helmet\n- damage formula'});
 Object.assign(UI2.en, {chatHi: "Hi! I'm fine, thanks. How are you? Ask me anything about weapons, gear, mods or Deviants.", chatFine: 'Good to hear! What would you like to build today?', chatThanks: "You're welcome! Ask anytime.", chatBye: 'Bye! Good luck in the game.', chatWho: "I'm the helper inside Pro Builder OH, made by Mr. Sherry. I answer from the game data in this app."});
@@ -678,7 +684,7 @@ window.ohUpdateProgress = p => { const o = document.getElementById('upd-ov'); if
 function renderSettings(){
   const t = S.setTab === 'lang' ? 'lang' : 'app';
   const seg = `<div class="seg" role="tablist">${[['app','setApp'],['lang','settingsLang']].map(x => `<button role="tab" aria-selected="${t === x[0]}" data-act="settab" data-v="${x[0]}">${esc(ui(x[1]))}</button>`).join('')}</div>`;
-  return `<div><p class="eyebrow">${esc(ui('tabSettings'))}</p><h2>${esc(ui('settingsH'))}</h2></div>${seg}` + (t === 'lang' ? `<p class="lead">${esc(ui('settingsNote'))}</p>${langList()}` : `${updateBox()}${aboutBox()}${devBox()}`);
+  return `<div><p class="eyebrow">${esc(ui('tabSettings'))}</p><h2>${esc(ui('settingsH'))}</h2></div>${seg}` + (t === 'lang' ? `<p class="lead">${esc(ui('settingsNote'))}</p>${langList()}` : `${updateBox()}${feedbackBox()}${aboutBox()}${devBox()}`);
 }
 function statusPill(st){ return `<span class="st ${st}">${esc(ui('s_' + st))}</span>`; }
 function buildCard(b){
@@ -1090,7 +1096,7 @@ function askRules(){
 }
 function askBubbles(){
   const T = ASK.turns;
-  return T.map((t, i) => `<div class="ab ${t.role}" id="ab${i}">${esc(t.content)}</div>`).join('');
+  return T.map((t, i) => `<div class="ab ${t.role}" id="ab${i}">${esc(t.content)}</div>${t.role === 'assistant' && i > 0 && i === T.length - 1 && !ASK.busy ? `<button class="link" data-act="askbad" data-i="${i}" style="align-self:flex-start;font-size:12px;padding:2px 4px">${esc(ui('askBad'))}</button>` : ''}`).join('');
 }
 function renderAsk(){
   const a = ASK;
@@ -1181,11 +1187,160 @@ const OFF_BUILDS = {
 'Weapon mod: Cryo Catalyst <Deviant Energy>. Calibration: Frugal Style with Weapon DMG + Weakspot DMG. Ammo: AP (Psi +15%, DMG per shot +15%).',
 'Secondary: AWS.338 - Bullseye · Vulnerability Amplifier <The Bull\'s Eye>. Melee: Rusted Blade or Kukri (kill = Attack +30%).',
 'Deviant: Voodoo Doll (ultimate about x1.6 damage; you also take more damage). Cradle: Precision Weapon Mastery, Status Enhancement, Elemental Sense, Extreme Freezing, Shield Protection, Deviant Energy Defense, Marked Strike, Resilience.',
-'Play: pick up the Deviant Particles for charges; shoot the head (about x1.9); stay close, damage drops at long range.']
+'Play: pick up the Deviant Particles for charges; shoot the head (about x1.9); stay close, damage drops at long range.'],
+'The Burden of Betrayal': ['Low HP Bounce build (tested on dummy: hit 2691, head 3897, Echo 7127). Focus: Weapon DMG + Crit; Bounce does most of the damage.',
+'Helmet: Savior Helmet · First-Move Advantage <Precision> · hide Rabbit Fur. (Reload = every arrow, so Crit Rate +10% and Crit DMG +20% are always on.)',
+'Mask: Savior Mask · Precision Bounce <Bounce> · hide Rabbit Fur.',
+'Top: Savior Top · Ardent Shield <Violent> · hide Lunar Rabbit Fur (Rejuvenating heals you, which is against low HP).',
+'Pants: Sharp Blade Pants (Key Effect: every Bounce triggers one more time) · Critical Surge <Precision> · hide Rabbit Fur. (Empty magazine = Crit DMG +15%, up to 3 stacks.)',
+'Gloves: Treacherous Tides Gloves · Crit Boost <Violent> (Crit Rate +15%) · hide Dreamfused Rabbit Fur.',
+'Shoes: Dark Resonance Shoes · Rush Hour <Precision> (every 10% HP lost = Weapon DMG +4%) · hide Rabbit Fur.',
+'Hides: 4 Rabbit Fur = Soaring Leap (Weakspot DMG +20% in the air). Sets: Savior 3 (shield: Weapon DMG +10%; HP loss: +5% x4).',
+'Weapon mod: Super Bullet <Bounce> or Bounce Rampage <Bounce>. Calibration: Portable Style with Weapon DMG + Crit Rate. Always shoot at full charge (Bounce DMG +20%, Crit Rate +35%).',
+'Secondary: AWS.338 - Bullseye · Vulnerability Amplifier <The Bull\'s Eye>. Melee: Rusted Blade or Kukri (kill = Attack x1.3, tested; an ice cube counts as a kill).',
+'Deviant: Butterfly\'s Emissary or Voodoo Doll. Cradle: Precision Weapon Mastery, Tactical Combo, Deadly Combo, Bounce Rampage, Marked Strike, Shield Protection, Deviant Energy Defense, Resilience.',
+'Play: keep HP low with the Savior shield up; use Rusted Blade on an ice cube before a boss; aim at the head.']
 };
-function askWeaponBuild(w){
+/* Auto build for ANY weapon from the app's own data (same engine as Build guide > Build from weapons).
+   pref.hp: 'low' | 'full'. Order: weapon > calibration > weapon mod > each armor (gear, mod <suffix>, hide + effect) > sets > secondary, melee, deviant, cradle. */
+const CAL_FOCUS = {w: 'Crit Rate', c: 'Crit DMG', ws: 'Weakspot DMG', e: 'Elemental DMG', s: 'Elemental DMG'};
+/* ---- Ask me build calculator (offline). Keeps one build in memory across messages:
+   weapon > its keyword > calibration lines > armor pieces > hides > armor mods. Then compares with the app's best build. ---- */
+function askWeaponKw(w){
+  const k = w.kw && KWINFO[w.kw];
+  const L = [askWeaponAnswer(w)];
+  if (w.kwd || k) L.push('', '🔑 ' + (k ? k.n : ui('keyword')) + ': ' + (w.kwd || ''), ...(k ? k.d : []));
+  if (w.wk && w.wk.length) L.push(ui('calWork') + ':', ...w.wk.map(t => '- ' + t));
+  return L.join('\n');
+}
+function calFindWeapon(qn, qt){
+  let w = WEAPONS.filter(x => qn.includes(norm(x.name))).sort((a, b) => b.name.length - a.name.length)[0];
+  if (!w) { const rest = x => x.name.replace(x.model, '').trim(); w = WEAPONS.filter(x => rest(x).length > 3 && qn.includes(norm(rest(x)))).sort((a, b) => rest(b).length - rest(a).length)[0]; }
+  if (!w) { const nm = askFuzzy(WEAPONS.map(x => x.name.replace(x.model, '').trim()).filter(x => x.length > 3), qt, true); if (nm.length === 1) w = WEAPONS.find(x => x.name.replace(x.model, '').trim() === nm[0]); }
+  return w || null;
+}
+const CAL_RE = [['Weapon DMG', /(weapon\s*dmg|weapon\s*damage|attack)\s*\+?\s*(\d+(?:\.\d+)?)/i], ['Crit Rate', /crit\s*rate\s*\+?\s*(\d+(?:\.\d+)?)/i], ['Crit DMG', /crit\s*(?:dmg|damage)\s*\+?\s*(\d+(?:\.\d+)?)/i], ['Weakspot DMG', /weak\s*spot\s*(?:dmg|damage)?\s*\+?\s*(\d+(?:\.\d+)?)/i], ['Elemental DMG', /element(?:al)?\s*(?:dmg|damage)?\s*\+?\s*(\d+(?:\.\d+)?)/i]];
+function calParse(q){
+  const C = ASK.calc, qn = norm(q), qt = askToks(q), found = [];
+  const w = calFindWeapon(qn, qt);
+  if (w) { if (C.w !== WEAPONS.indexOf(w)) Object.assign(C, {w: WEAPONS.indexOf(w), cal: {}, gear: {}, hide: {}, mod: {}, offer: false}); found.push('w'); }
+  if (/calib|calibration|kalib/i.test(q) || (C.w != null && /weapon\s*dmg|crit\s*rate|crit\s*dmg|weak\s*spot|element/i.test(q) && !/armor|hide|fur|mod/i.test(q))) {
+    CAL_RE.forEach(([n, re]) => { const m = q.match(re); if (m) { C.cal[n] = +(m[2] || m[1]); found.push('c'); } });
+    const st = q.match(/(\w[\w-]*)\s*style/i); if (st) { C.style = st[1]; found.push('c'); }
+  }
+  const A = ASLOTS();
+  A.forEach(sl => { const hit = sl.items.filter(n => qn.includes(norm(n))).sort((a, b) => b.length - a.length)[0]; if (hit) { C.gear[sl.key] = hit; found.push('g'); } });
+  HA_HIDES.slice().sort((a, b) => b[0].length - a[0].length).forEach(h => { const nh = norm(h[0]); let i = qn.indexOf(nh); while (i >= 0) {
+      const before = q.toLowerCase().slice(0, q.toLowerCase().indexOf(h[0].toLowerCase().split(' ')[0])), sl = A.slice().reverse().find(s => new RegExp(ui('slot_' + s.key) + '|' + s.key + '|' + ({helmet:'hat|hood|cap|helmet', face:'mask', top:'top|jacket|vest', bottoms:'pants|pant', gloves:'gloves', shoes:'shoes|boots'}[s.key]), 'i').test(before.split(/[,\n]/).pop() || ''));
+      const k = sl ? sl.key : (A.find(s => !C.hide[s.key]) || A[0]).key; if (!C.hide[k] || sl) C.hide[k] = h[0]; found.push('h'); qn.replace(nh, ''); break; } });
+  Object.keys(AMODS).forEach(k => AMODS[k].forEach(m => { if (qn.includes(norm(m.n))) { const after = q.slice(q.toLowerCase().indexOf(m.n.toLowerCase().split(' ')[0])), sf = (after.match(/<([^>]+)>/) || after.match(/\b(Violent|Precision|Lunar(?: Deviant Energy)?|Crescent(?: Deviant Energy)?|Downstar(?: Deviant Energy)?|Aero(?: Deviant Energy)?|Deviant Energy|General|Survival|Bounce|Arrow|Phantasmal|Mirror|Wild|Battle|Resonance)\b/i) || [])[1];
+      const sfx = (m.suffixes || []).find(x => sf && norm(x.n) === norm(sf)) || null; const slot = Object.keys(BG_AMKEY).find(s => BG_AMKEY[s] === k); C.mod[slot] = {n: m.n, main: m.main, sf: sfx}; found.push('m'); } }));
+  return found;
+}
+function calFx(C, w, pref){
+  const out = [], lines = [], A = ASLOTS(), sets = {};
+  A.forEach(sl => { const g = GFULL[C.gear[sl.key]]; if (!g) return; if (g.set.indexOf('Key Effect') === 0) { lines.push(...g.fx); } else (sets[g.set] = sets[g.set] || []).push(g); });
+  Object.keys(sets).forEach(sn => { const n = Math.min(4, sets[sn].length); lines.push(...sets[sn][0].fx.slice(0, n)); });
+  lines.forEach(t => out.push(...fxParse(t, pref)));
+  Object.values(C.hide).forEach(n => { const h = HA_HIDES.find(x => x[0] === n); if (h) out.push(...h[2]); });
+  const fam = {}; Object.values(C.hide).forEach(n => { const k = Object.keys(HSET).find(k => n.indexOf(HSET[k][0].split(' ')[0]) >= 0); if (k) fam[k] = (fam[k] || 0) + 1; });
+  Object.keys(fam).forEach(k => { if (fam[k] >= 4) out.push(...fxParse(HSET[k][2], pref)); });
+  Object.values(C.mod).forEach(m => { out.push(...fxParse(m.main || '', pref)); if (m.sf) m.sf.stats.forEach(t => out.push(...fxParse(t, pref))); });
+  return {fx: out, sets, fam};
+}
+function calReport(){
+  const C = ASK.calc, w = WEAPONS[C.w]; if (!w) return '';
+  const pref = {hp: C.hp || 'any', san: 'any'}, L = [askWeaponKw(w)];
+  const bp = Object.keys(C.cal).map(k => [k, C.cal[k] + '%']);
+  if (bp.length) {
+    const dmg = vbNum(w.dmg) || 0, wd = C.cal['Weapon DMG'] || 0;
+    L.push('', '⚙️ ' + ui('abCal') + (C.style ? ' (' + C.style + ' Style)' : '') + ':');
+    bp.forEach(r => L.push('- ' + r[0] + ' +' + r[1]));
+    if (dmg && wd) L.push(ui('calAtk', {a: Math.round(dmg * (1 + wd / 100)), d: dmg, p: wd}));
+    const tot = k => (vbNum(w[k]) || 0);
+    L.push(ui('calTot') + ': Crit Rate ' + (tot('cr') + (C.cal['Crit Rate'] || 0)) + '%, Crit DMG ' + (tot('cd') + (C.cal['Crit DMG'] || 0)) + '%, Weakspot DMG ' + (tot('wd') + (C.cal['Weakspot DMG'] || 0)) + '%' + (C.cal['Elemental DMG'] ? ', Elemental +' + C.cal['Elemental DMG'] + '%' : ''));
+  }
+  const A = ASLOTS(), have = A.filter(sl => C.gear[sl.key] || C.hide[sl.key] || C.mod[sl.key]);
+  if (have.length) {
+    L.push('', '🛡️ ' + ui('calArmor') + ':');
+    have.forEach(sl => { const g = GFULL[C.gear[sl.key]], m = C.mod[sl.key], h = C.hide[sl.key];
+      L.push('▸ ' + ui('slot_' + sl.key) + ': ' + (g ? g.n + (g.set.indexOf('Key Effect') === 0 ? ' (Key Effect: ' + g.fx.join(' ') + ')' : ' [' + g.set + ']') : '—'));
+      if (m) L.push('   ' + ui('wpMod') + ': ' + m.n + (m.sf ? ' <' + m.sf.n + '>' : '') + ' · ' + m.main + (m.sf ? ' · ' + m.sf.stats.join('; ') : ''));
+      if (h) { const hh = HA_HIDES.find(x => x[0] === h); L.push('   ' + ui('wpHide') + ': ' + h + (hh ? ' (' + hh[1] + ')' : '')); } });
+    const r = calFx(C, w, pref);
+    Object.keys(r.sets).forEach(sn => { const n = Math.min(4, r.sets[sn].length); L.push(ui('calSet', {s: sn, n}) + ': ' + r.sets[sn][0].fx.slice(0, n).join(' / ')); });
+    Object.keys(r.fam).forEach(k => { if (r.fam[k] >= 4) L.push(ui('abHideSet') + ': 4× ' + HSET[k][0] + ' = ' + HSET[k][1] + ' (' + HSET[k][2] + ')'); });
+  }
+  HA_PREF = pref;
+  const bpx = bp.some(r => r[0] === 'Weapon DMG') ? bp : bp.concat([['Weapon DMG', '0%']]);
+  const base = haBase(w, bpx), b0 = haBase(w, [['Weapon DMG', '0%']]), fx = have.length ? calFx(C, w, pref).fx : [];
+  const g = (haDmg(w, haApply(w, base, fx)) / haDmg(w, b0) - 1) * 100;
+  C.gain = g; C.bp = bpx; HA_PREF = null;
+  L.push('', '📊 ' + ui('calGain') + ': ' + haPct(g));
+  C.offer = true; L.push('', ui('calOffer'));
+  return L.join('\n');
+}
+function calImprove(){
+  const C = ASK.calc, w = WEAPONS[C.w]; C.offer = false;
+  const hp = C.hp === 'full' ? 'full' : 'low';
+  const txt = askAutoBuild(w, hp), og = C.gain || 0;
+  HA_PREF = {hp: hp, san: 'any'}; const ng = (haDmg(w, haApply(w, haBase(w, C.bp || []), ASK.lastAutoFx || [])) / haDmg(w, haBase(w, [['Weapon DMG', '0%']])) - 1) * 100; HA_PREF = null;
+  return txt + '\n\n⚖️ ' + ui('calCmp', {a: haPct(og), b: haPct(ng), d: haPct(Math.max(0, ng - og))});
+}
+function askAutoBuild(w, hp){
+  const pref = {hp: hp, san: 'any'}, A = ASLOTS();
+  /* Snowdrift Top only works for weapons that make Deviant Particles; Lunar suffixes are for low HP only. */
+  const parts = (w.wk || []).some(t => /Deviant Particle/i.test(t)), saved = A.map(sl => sl.items);
+  if (!parts) A.forEach(sl => sl.items = sl.items.filter(n => n !== 'Snowdrift Top'));
+  const sufOk = sf => hp === 'low' || !/Lunar/.test(sf.n);
+  /* Small magazines (bows, snipers with MAG <= 5): "first/next 50% of the magazine" and "first three hits after reloading" mods do nothing. */
+  const smallMag = (vbNum(w.mag) || 99) <= 5, magOk = m => !(smallMag && /of the magazine|first three hits after reloading/i.test(m.main || ''));
+  const ML = l => (l || []).filter(magOk).map(m => Object.assign({}, m, {suffixes: (m.suffixes || []).filter(sufOk)}));
+  HA_PREF = pref;
+  let base, gear;
+  try { base = haBase(w, null); gear = bgPlanGear(w, base, pref); } finally { A.forEach((sl, i) => sl.items = saved[i]); }
+  const gfx = gear ? gear.lines.flatMap(t => fxParse(t, pref)) : [], after = haApply(w, base, gfx);
+  const mods = {}, mfx = [];
+  A.forEach(sl => { let list = ML(AMODS[BG_AMKEY[sl.key]]);
+    /* Top mods are all defensive: Low HP takes Ardent Shield (no healing), Full HP takes Rejuvenating; the suffix still carries the damage. */
+    if (sl.key === 'top') { const want = hp === 'low' ? /Ardent Shield/ : /Rejuvenating/, pick = list.filter(m => want.test(m.n)); if (pick.length) list = pick; }
+    const m = bgBestMod(w, after, pref, list, 'main'); mods[sl.key] = m; if (m) mfx.push(...m.fx); });
+  let wl = ML(WMODS[w.kw]); if (w.kw === 'bullseye') { const va = wl.filter(m => /Vulnerability Amplifier/.test(m.n)); if (va.length) wl = va; }
+  const wm = bgBestMod(w, haApply(w, after, mfx), pref, wl, 'common');
+  HA_PREF = pref; try { const hfx0 = (buildAnalysis(w, null).hides[0] || {}); const hh = HA_HIDES.find(x => x[0] === hfx0.n); ASK.lastAutoFx = gfx.concat(mfx, wm ? wm.fx : [], hh ? hh[2] : []); } catch (e) {}
+  const an = buildAnalysis(w, null); HA_PREF = null;
+  const rare = n => /^(Lunar|Starfall)/.test(n);
+  const face = an.hides.find(h => !rare(h.n)) || an.hides[0], opt = an.hides.find(h => rare(h.n) && h.g > (face ? face.g : 0));
+  const set0 = an.sets[0], fam = set0 ? HSET[set0.k] : HSET.rabbit;
+  const hfx = n => { const h = HA_HIDES.find(x => x[0] === n); return h ? h[1] : ''; };
+  const kc = CATS.find(x => x[0] === w.kw), cls = w.cls;
+  const mastery = ['sniper','smg','crossbow','bow'].includes(cls) ? 'Precision Weapon Mastery' : ['rifle','shotgun','heavy'].includes(cls) ? 'Heavy Weapon Mastery' : ['pistol','lmg','melee'].includes(cls) ? 'Light Weapon Mastery' : '';
+  const L = [];
+  L.push('🔫 ' + w.name + ' (' + (kc ? kc[1] : ui('noKw')) + ') · ' + ui(hp === 'low' ? 'bgO_hp_low' : 'bgO_hp_full'));
+  L.push(ui('abCal') + ': Weapon DMG / Attack (gold 34-50%) + ' + (CAL_FOCUS[an.f] || 'Crit Rate'));
+  if (wm) L.push(ui('wsMod') + ': ' + wm.n + ' <' + wm.sf + '>' + (wm.main ? ' · ' + wm.main : ''));
+  L.push('');
+  A.forEach(sl => { const g = gear && gear.pick[sl.key], m = mods[sl.key];
+    const hn = sl.key === 'face' ? (face ? face.n : '') : (fam ? fam[0] : (face ? face.n : ''));
+    const he = sl.key === 'face' ? (face ? face.txt : '') : hfx(hn);
+    L.push('▸ ' + ui('slot_' + sl.key) + ': ' + (g ? g.n : ui('dataNone')) + (g && g.set && g.set.indexOf('Key Effect') === 0 ? ' (Key Effect)' : ''));
+    if (m) L.push('   ' + ui('wpMod') + ': ' + m.n + ' <' + m.sf + '>' + (m.main ? ' · ' + m.main : ''));
+    if (hn) L.push('   ' + ui('wpHide') + ': ' + hn + (he ? ' (' + he + ')' : ''));
+  });
+  L.push('');
+  if (gear) { const key = A.map(sl => gear.pick[sl.key]).find(g => g && g.set && g.set.indexOf('Key Effect') === 0); L.push(ui('abSets') + ': ' + gear.set + ' 4pc' + (key ? ' + ' + key.n + ' (Key Effect)' : '')); }
+  if (fam) L.push(ui('abHideSet') + ': 4× ' + fam[0] + ' = ' + fam[1] + ' (' + fam[2] + ')');
+  if (opt) L.push(ui('abOpt') + ': ' + opt.n + ' (' + opt.txt + ')');
+  L.push(ui('wsSec') + ': AWS.338 - Bullseye · Vulnerability Amplifier <The Bull\'s Eye>');
+  L.push(ui('wsMelee') + ': Rusted Blade / Kukri (kill = Attack x1.3; tested)');
+  L.push(ui('abDev') + ': Voodoo Doll (ultimate about x1.6 damage, tested)');
+  L.push(ui('wsCradle') + ': ' + [mastery, 'Tactical Combo', 'Marked Strike', hp === 'low' ? 'Deviant Energy Defense' : 'Shield Protection', 'Resilience'].filter(Boolean).join(', '));
+  return L.join('\n');
+}
+function askWeaponBuild(w, hp){
   const ob = OFF_BUILDS[Object.keys(OFF_BUILDS).find(k => w.name.indexOf(k) >= 0)];
-  if (ob) return [askWeaponAnswer(w), ''].concat(ob).join('\n');
+  if (ob && hp !== 'full') return [askWeaponAnswer(w), ''].concat(ob).join('\n');
+  try { return askAutoBuild(w, hp || 'low'); } catch (e) {}
   const L = [askWeaponAnswer(w), ''], flat = x => Array.isArray(x) ? x.filter(Boolean).join(': ') : (x && typeof x === 'object' ? (x.n || x.name || JSON.stringify(x)) : String(x));
   if (w.gear && w.gear.length) {
     L.push(ui('askBuildFull'));
@@ -1244,6 +1399,7 @@ function askFuzzy(names, qt, useUnique){
   return res.filter(n => !res.some(o => o !== n && toks(o).length > toks(n).length && toks(n).every(t => toks(o).includes(t))));
 }
 function askLocal(q){
+  q = String(q).replace(/\b(p ?90|pdw ?-?90|pwd ?90)\b/ig, 'PWD-90');
   const qn = norm(q), qt = askToks(q), tok = new Set(qt);
   const out = [], note = (name, exact) => exact ? '' : ASK_GUESS_MARK + ui('askGuess', {name}) + '\n';
   // mods first, so a mod name is not mistaken for a gear name
@@ -1257,7 +1413,8 @@ function askLocal(q){
   if (!hs.length && !ms.length) hs = askFuzzy(Object.keys(GFULL), qt, true);
   hs.forEach(k => out.push(note(k, qn.includes(norm(k))) + askHelmetAnswer(GFULL[k], q)));
   // weapons
-  let ws = WEAPONS.filter(w => qn.includes(norm(w.name)));
+  let ws = WEAPONS.filter(w => qn.includes(norm(w.name))).sort((a, b) => b.name.length - a.name.length);
+  if (ws.length > 1) ws = ws.filter(w => !ws.some(o => o !== w && norm(o.name).includes(norm(w.name))));
   if (!ws.length && !ms.length && !hs.length) {
     const rest = w => { const r = w.name.replace(w.model, '').trim(); if (!r) return w.name; return askToks(r).filter(x => x !== 'bp').length ? r : ''; };
     const nm = askFuzzy(WEAPONS.map(rest).filter(Boolean), qt, true); ws = WEAPONS.filter(w => rest(w) && nm.includes(rest(w)));
@@ -1265,7 +1422,8 @@ function askLocal(q){
   if (!ws.length && !ms.length && !hs.length) ws = WEAPONS.filter(w => qn.includes(norm(w.model)));
   if (ws.length) { const more = WEAPONS.filter(o => !ws.includes(o) && ws.some(w => norm(o.name) !== norm(w.name) && norm(o.name).includes(norm(w.name)))); ws = ws.concat(more); }
   const wantBuild = /\b(build|bild|buld|banao|bnao|btao|batao|setup|loadout|gear|mods?|hides?)\b|बिल्ड|பில்ட்/i.test(q);
-  ws.forEach(w => out.push(note(w.name, qn.includes(norm(w.name))) + (wantBuild ? askWeaponBuild(w) : askWeaponAnswer(w))));
+  const hpWant = /full|poori|puri|high|zyada hp|ziada hp/i.test(q) ? 'full' : 'low';
+  ws.slice(0, wantBuild ? 1 : 3).forEach(w => out.push(note(w.name, qn.includes(norm(w.name))) + (wantBuild ? askWeaponBuild(w, hpWant) : askWeaponAnswer(w))));
   ms.forEach(m => out.push(note(m.n, qn.includes(norm(m.n))) + askModAnswer(m)));
   // keywords
   Object.keys(KWINFO).forEach(k => {
@@ -1309,6 +1467,7 @@ function askChat(t){
   const q = ' ' + String(t).toLowerCase().replace(/[^a-z؀-ۿ ]/g, ' ').replace(/\s+/g, ' ') + ' ';
   if (q.length > 48) return null;
   const has = re => re.test(q);
+  if (has(/ weapon amplifier /) && !has(/ mod /)) return curLang() === 'ur' ? 'Buff list mein "Weapon Amplifier" (Weapon DMG +15%) asal mein Tactical Combo cradle ka buff hai: "Weapon DMG +15% for 4s after switching weapons or reloading." Bow har teer par reload hota hai, is liye yeh taqreeban hamesha on rehta hai. (Gloves mod "Weapon Amplifier" alag cheez hai.)' : 'The "Weapon Amplifier" buff (Weapon DMG +15%) in your buff list comes from the Tactical Combo cradle: "Weapon DMG +15% for 4s after switching weapons or reloading." A bow reloads after every arrow, so it is almost always on. (The gloves mod "Weapon Amplifier" is a different thing.)';
   if (has(/ (thanks|thank you|thx|ty|shukriya|shukria|meherbani|jazakallah) /)) return ui('chatThanks');
   if (has(/ (bye|allah hafiz|khuda hafiz|good night|see you) /)) return ui('chatBye');
   if (has(/ (who are you|kon ho|kaun ho|tum kon|ap kon|aap kaun) /)) return ui('chatWho');
@@ -1321,6 +1480,16 @@ function askChat(t){
 const MISS_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSddONI-icE1IZHxR0IfHo-qE4wneSgQcSJXj95HyiHiiEl3RA/formResponse', MISS_KEY = 'oh-miss';
 function missLoad(){ try { return JSON.parse(localStorage.getItem(MISS_KEY) || '[]'); } catch (e) { return []; } }
 function missSave(l){ try { localStorage.setItem(MISS_KEY, JSON.stringify(l.slice(-50))); } catch (e) {} }
+function sendFeedback(kind, text){
+  text = String(text || '').trim().slice(0, 500); if (!text) return false;
+  let v = ''; try { v = window.OHUpdate ? verLabel(OHUpdate.version()) : 'web'; } catch (e) {}
+  const l = missLoad(); l.push({q: '[' + kind + '] ' + text, v, l: curLang()}); missSave(l); missFlush(); return true;
+}
+function feedbackBox(){
+  return `<div class="res" style="margin-top:16px"><p class="label">${esc(ui('fbH'))}</p><p class="note" style="margin:4px 0 8px">${esc(ui('fbP'))}</p>
+    <textarea id="fb-in" rows="3" style="width:100%;box-sizing:border-box;border-radius:10px;border:1px solid var(--line);padding:8px;background:transparent;color:var(--fg);font:inherit" placeholder="${esc(ui('fbPh'))}"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn ghost" data-act="fbsend" data-v="Mistake">${esc(ui('fbBug'))}</button><button class="btn" data-act="fbsend" data-v="Suggestion">${esc(ui('fbIdea'))}</button></div><p class="notice" id="fb-msg" aria-live="polite"></p></div>`;
+}
 function askReport(q){
   q = String(q || '').trim().slice(0, 300); if (!q) return;
   let v = ''; try { v = window.OHUpdate ? verLabel(OHUpdate.version()) : 'web'; } catch (e) {}
@@ -1339,6 +1508,16 @@ async function askSend(text){
   if (!text) text = ui('askImgDefault');
   a.err = ''; a.choices = [];
   a.turns.push({role:'user', content: text + (files.length ? '\n📎 ' + ui('askFiles', {n: files.length}) : '')});
+  if (!files.length) {
+    a.calc = a.calc || {};
+    if (a.calc.offer && /^\s*(haan|han|ha|yes|ji|jee|ok|okay|theek|thik|zaroor|bilkul|y)\b/i.test(text)) { a.turns.push({role:'assistant', content:calImprove()}); askSave(); render(true); const c = document.getElementById('achat'); if (c) c.scrollTop = c.scrollHeight; return; }
+    if (/low\s*hp|kam\s*hp/i.test(text)) a.calc.hp = 'low'; else if (/full\s*hp|poori\s*hp|puri\s*hp/i.test(text)) a.calc.hp = 'full';
+    const isBuildQ = /\b(build|bild|banao|bnao|setup|loadout)\b/i.test(text) && !/calib|stats|mila|combine|sath|saath/i.test(text);
+    const f = isBuildQ ? [] : calParse(text);
+    const combo = /calib|stats|mila|combine|sath|saath|total|kitna|kitni/i.test(text) || f.some(x => x !== 'w');
+    if (f.length && a.calc.w != null && combo) { a.turns.push({role:'assistant', content:calReport()}); askSave(); render(true); const c = document.getElementById('achat'); if (c) c.scrollTop = c.scrollHeight; return; }
+    if (f.includes('w') && /keyword|kw/i.test(text)) { a.turns.push({role:'assistant', content:askWeaponKw(WEAPONS[a.calc.w])}); askSave(); render(true); const c = document.getElementById('achat'); if (c) c.scrollTop = c.scrollHeight; return; }
+  }
   const chat = files.length ? null : askChat(text);
   if (chat) { a.turns.push({role:'assistant', content:chat}); askSave(); render(true); const c = document.getElementById('achat'); if (c) c.scrollTop = c.scrollHeight; return; }
   const loc = files.length ? [] : askLocal(text);
@@ -1407,6 +1586,7 @@ function resCard(b, ev){
 function renderGear(){
   if (!S.bgMode) return bgModeScreen();
   if (S.bgMode === 'weapon') return bgWeaponFlow();
+  if (S.bgMode === 'own') return ownBuild();
   const A = ASLOTS(); if (!A.length) return `<div><p class="eyebrow">${esc(ui('gearH'))}</p><h2>${esc(ui('gearH'))}</h2><p class="note">${esc(ui('gearEmpty'))}</p></div>`;
   const st = step(), total = A.length;
   if (st < total) {
@@ -1528,6 +1708,8 @@ document.addEventListener('click', e => {
   else if (a === 'wopen') { S.wi = +el.dataset.i; S.from = S.screen === 'wbuild' ? S.from : S.screen; S.screen = 'wbuild'; render(); }
   else if (a === 'back') { S.screen = S.from; render(); }
   else if (a === 'tab') { S.tab = el.dataset.v; render(); try{window.OHAds&&OHAds.nav()}catch(e){} }
+  else if (a === 'fbsend') { const i = $('#fb-in'), m = $('#fb-msg'); if (i && sendFeedback(el.dataset.v, i.value)) { i.value = ''; if (m) m.textContent = ui('fbDone'); } else if (m) m.textContent = ui('fbEmpty'); }
+  else if (a === 'askbad') { const t = ASK.turns, ai = +el.dataset.i, qq = t.slice(0, ai).reverse().find(x => x.role === 'user'); sendFeedback('Wrong answer', (qq ? qq.content : '') + ' => ' + String(t[ai] ? t[ai].content : '').slice(0, 300)); el.textContent = ui('fbDone'); el.disabled = true; }
   else if (a === 'settab') { S.setTab = el.dataset.v; render(); }
   else if (a === 'updcheck') { const m = $('#upd-msg'); if (m) m.textContent = ui('updChecking'); try { OHUpdate.check(); } catch (e) {} }
   else if (a === 'asksend') { const i = $('#ask-in'); askSend(i ? i.value : ''); }
@@ -1818,7 +2000,7 @@ const HA_SETS = {rabbit:[['ws',20,.15]], wolf:[['ws',6,.5]], bear:[['el',6,.3,'f
 const HA_ELEM = ['burn','frost','surge','bomber'];
 function haBase(w, bp){
   const st = Object.fromEntries((w.st || []).map(r => [statKey(r[0]), pctOf(r[1])]));
-  const b = {w:0, cr:st.critrate || 0, cd:st.critdmg || 0, ws:st.weakspotdmg || 0, s:0, el:0, m:0};
+  const b = {w:0, cr:st.critrate || 0, cd:st.critdmg || 0, ws:st.weakspotdmg || 0, s:0, el:0, m:0, a:0, o:0, v:0, k:0};
   if (!(bp || []).some(x => /^weapondmg$|^attack$/.test(statKey(x[0])))) b.w += HA_BP_W;
   (bp || []).forEach(x => { const k = statKey(x[0]), v = pctOf(x[1]);
     if (/^weapondmg$|^attack$/.test(k)) b.w += v; else if (k === 'critrate') b.cr += v; else if (k === 'critdmg') b.cd += v; else if (k === 'weakspotdmg') b.ws += v; else if (/^elemental/.test(k)) b.el += v; else if (/^statusdmg$/.test(k)) b.s += v; });
@@ -1827,9 +2009,11 @@ function haBase(w, bp){
 function haDmg(w, b){
   const cr = Math.min(100, b.cr) / 100;
   if (w.cls === 'melee') return (1 + (b.w + b.m) / 100) * (1 + Math.min(100, b.cr + (b.mcr || 0)) / 100 * b.cd / 100);
-  const gun = (1 + b.w / 100) * (1 + cr * b.cd / 100) * (1 + HA_P * b.ws / 100);
+  /* tested buckets (2026-10-23): Attack x Weapon/Status x Other(DMG Boost, vs enemies) x Vulnerability x Keyword x Weakspot x Crit */
+  const sep = (1 + (b.a || 0) / 100) * (1 + (b.o || 0) / 100) * (1 + (b.v || 0) / 100) * (1 + 0.5 * (b.k || 0) / 100);
+  const gun = sep * (1 + b.w / 100) * (1 + cr * b.cd / 100) * (1 + HA_P * b.ws / 100);
   if (!HA_ELEM.includes(w.kw)) return gun;
-  return 0.5 * gun + 0.5 * (1 + b.s / 100) * (1 + b.el / 100);
+  return 0.5 * gun + 0.5 * sep * (1 + b.s / 100) * (1 + b.el / 100);
 }
 function haApply(w, b, fx){
   const n = Object.assign({}, b);
@@ -1896,7 +2080,22 @@ function fxParse(t, pref){
   const N = '(\\d+(?:\\.\\d+)?)%';
   grab(new RegExp('(?:Weapon|Gun)(?: DMG)? and Status DMG(?! Reduction)[^\\d%.]{0,30}?\\+?\\s?' + N, 'ig'), v => { out.push(['w', v * mul, up]); out.push(['s', v * mul, up]); });
   Object.keys(KWINFO).forEach(k => { const nm = KWINFO[k].n.replace(/^The /, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    grab(new RegExp(nm + '[^\\d%.]{0,25}?DMG(?! Reduction)[^\\d%.]{0,20}?\\+\\s?' + N, 'ig'), v => out.push(['w', v * mul * 0.5, up, k])); });
+    grab(new RegExp(nm + '[^\\d%.]{0,25}?DMG(?! Reduction)[^\\d%.]{0,20}?\\+\\s?' + N, 'ig'), v => out.push(['k', v * mul, up, k])); });
+  /* tested 2026-10-23: these lines are separate buckets */
+  grab(new RegExp('Increases damage dealt to all DMG Boost by\\s*\\+?\\s?' + N, 'ig'), v => out.push(['o', v, 1]));
+  grab(new RegExp('DMG (?:Bonus )?(?:against|to) (?:normal enemies|enemies|monsters|Great Ones|Elites?|Bosses?)[^\\d%]{0,12}?\\+?\\s?' + N, 'ig'), v => out.push(['o', v, up]));
+  grab(new RegExp('Weapon DMG\\s*\\+\\s?' + N + '\\s*against (?:Elites?|Bosses?|enemies)', 'ig'), v => out.push(['o', v, up]));
+  grab(new RegExp('(?:Additional DMG|DMG)\\s*\\+\\s?' + N + '(?= to (?:enemies|targets) (?:under|affected by))', 'ig'), v => out.push(['v', v * mul, up]));
+  grab(new RegExp('Vulnerability\\s*\\+\\s?' + N, 'ig'), v => out.push(['v', v * mul, up]));
+  grab(new RegExp('adds Vulnerability\\s*\\+\\s?' + N, 'ig'), v => out.push(['v', v, up]));
+  grab(new RegExp('Every 10% HP loss grants\\s*\\+\\s?' + N + '\\s*Melee, Weapon, and Status DMG', 'ig'), v => { const p = pref || {}, n = p.hp === 'low' ? 5 : p.hp === 'full' ? 0 : 2.5; out.push(['w', v * n, 1], ['s', v * n, 1], ['m', v * n, 1]); });
+  grab(new RegExp('\\+\\s?' + N + '\\s*Melee, Weapon, and Status DMG', 'ig'), v => out.push(['w', v, up], ['s', v, up], ['m', v, up]));
+  grab(new RegExp('\\+\\s?' + N + '\\s*Weapon and Status DMG', 'ig'), v => out.push(['w', v, up], ['s', v, up]));
+  grab(/Every stack grants \+(\d+(?:\.\d+)?)% Elemental DMG[^.]*up to (\d+)/ig, v => out.push(['el', v * 20 * 0.7, 1]));
+  grab(/Increase max Deviant Energy stack by (\d+)/ig, v => out.push(['el', v * 0.7, 1]));
+  grab(new RegExp('Elemental DMG \\([^)]*\\) by\\s*' + N, 'ig'), v => out.push(['el', v, 0.3]));
+  grab(new RegExp('(?:Blaze|Frost|Shock|Blast) DMG\\s*\\+\\s?' + N, 'ig'), v => out.push(['el', v * mul, up]));
+  grab(new RegExp('(?:your )?Attack\\s*\\+\\+?\\s?' + N, 'ig'), v => out.push(['a', v * mul, up]));
   [['cr','Crit Rate'],['cd','Crit DMG'],['ws','Weakspot DMG'],['el','Element(?:al)?(?: \\([^)]*\\))? DMG'],['s','Status DMG'],['m','Melee DMG'],['w','Weapon DMG']].forEach(([k, nm]) =>
     grab(new RegExp(nm + '(?! Reduction)[^\\d%.]{0,30}?\\+?\\s?' + N, 'ig'), v => out.push([k, v * mul, up])));
   if (kwOnly) out.forEach(f => { if (!f[3]) f[3] = kwOnly; });
@@ -1924,8 +2123,74 @@ function bgModeScreen(){
   return `<div><p class="eyebrow">${esc(ui('gearH'))}</p><h2>${esc(ui('bgModeH'))}</h2><p class="lead">${esc(ui('bgModeP'))}</p></div>
     <div class="wiz"><button class="opt" data-act="bgmode" data-v="gear"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('bgFromGear'))}</span><span class="label" style="text-transform:none">${esc(ui('bgFromGearP'))}</span></span>${ICO_ARROW}</button>
     <button class="opt" data-act="bgmode" data-v="weapon"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('bgFromWpn'))}</span><span class="label" style="text-transform:none">${esc(ui('bgFromWpnP'))}</span></span>${ICO_ARROW}</button>
+    <button class="opt" data-act="bgmode" data-v="own"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(curLang()==='ur'?'Own build':'Own build')}</span><span class="label" style="text-transform:none">${esc(curLang()==='ur'?'Apna weapon, tier, star aur calibration chun kar game jaisa panel dekhein':'Pick your weapon, tier, star and calibration and see a game-like panel')}</span></span>${ICO_ARROW}</button>
     <button class="opt" data-act="go" data-to="ask"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('tabAsk'))}</span><span class="label" style="text-transform:none">${esc(ui('bgAskP'))}</span></span>${ICO_ARROW}</button></div>`;
 }
+/* ---------- Own Build: weapon (tier, star, calibration) -> game-panel review ---------- */
+const OB_RAR = {gold:6, purple:5, blue:4, green:3};
+const OB_TIER = {I:0.169, II:0.263, III:0.421, IV:0.657, V:1};
+const OB_STAR = (s, max) => 1 + (s - 1) / (2 * (max + 4));
+/* app values recorded at the user's star; divide back to 1 star */
+const OB_AT = {'Compound Bow The Burden of Betrayal':['gold',6], 'DE.50 Wildfire':['purple',5], 'RPG7 Rocket Launcher':['blue',4], 'S870 Sandstorm':['blue',4], 'DE.50 BP':['blue',3], 'Torch':['gold',2], 'DBSG Dual Fury':['gold',2]};
+function obState(){ if (!S.ob) { let o = null; try { o = JSON.parse(localStorage.getItem('oh_ob') || 'null'); } catch (e) {} S.ob = o || {w:'', rar:'gold', star:6, tier:'V', wd:0, sa:0, gold:false, cr:0, cd:0, ws:0}; } return S.ob; }
+function obSave(){ try { localStorage.setItem('oh_ob', JSON.stringify(S.ob)); } catch (e) {} }
+function obBase(w){ const st = Object.fromEntries((w.st || []).map(r => [r[0].replace(/ \(DMG\)/, ''), r[1]])); const raw = String(st['DMG'] || st['Damage'] || '');
+  const n = vbNum(raw) || 0, mult = (raw.match(/x\s*\d+/) || [''])[0]; const at = OB_AT[w.name]; const one = at ? n / OB_STAR(at[1], OB_RAR[at[0]]) : n;
+  return {one, mult, cr: vbNum(st['Crit Rate']) || 0, cd: vbNum(st['Crit DMG']) || 0, ws: vbNum(st['Weakspot DMG']) || 0}; }
+function obCalc(o){ const w = WEAPONS.find(x => x.name === o.w); if (!w) return null; const b = obBase(w), max = OB_RAR[o.rar] || 6, star = Math.min(+o.star || 1, max);
+  const card1 = b.one * OB_STAR(star, max) * (OB_TIER[o.tier] || 1);
+  const card = card1 * (1 + (+o.wd || 0) / 100) * (o.gold ? 1.15 : 1);
+  const atk = card * (1 + (+o.sa || 0) / 100);
+  return {w, b, max, star, card1, card, atk, cr: b.cr + (+o.cr || 0), cd: b.cd + (+o.cd || 0), ws: b.ws + (+o.ws || 0)}; }
+function ownBuild(){ const o = obState(), r = obCalc(o), ur = curLang() === 'ur';
+  const L = (en, u) => esc(ur ? u : en);
+  const opt = (v, cur, t) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(t)}</option>`;
+  const num = (k, lab) => `<label class="label" style="display:flex;justify-content:space-between;align-items:center;gap:8px;text-transform:none">${lab}<input type="number" inputmode="decimal" min="0" max="100" step="0.1" data-ob="${k}" value="${esc(o[k] || 0)}" style="width:90px;padding:8px;border-radius:10px;border:1px solid var(--line,#444);background:transparent;color:inherit"></label>`;
+  const sel = (k, opts) => `<select data-ob="${k}" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line,#444);background:transparent;color:inherit">${opts}</select>`;
+  const wl = WEAPONS.filter(w => w.cls !== 'melee').map(w => opt(w.name, o.w, (w.model && w.name.indexOf(w.model) < 0 ? w.model + ' ' : '') + w.name)).join('');
+  const max = OB_RAR[o.rar] || 6, stars = Array.from({length: max}, (_, i) => opt(i + 1, Math.min(o.star, max), (i + 1) + '★')).join('');
+  const f = x => Math.round(x).toLocaleString('en-US'), p = x => (Math.round(x * 10) / 10) + '%';
+  const row = (k, v) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line,#444)"><span>${k}</span><b>${v}</b></div>`;
+  const panel = r ? `<div class="res"><h3>${L('Panel review', 'Panel review')}</h3>
+      ${row('Attack', f(r.atk) + (r.b.mult ? ' ' + esc(r.b.mult) : ''))}${row('Crit Rate', p(r.cr))}${row('Crit DMG', p(r.cd))}${row('Weakspot DMG', p(r.ws))}
+      <p class="label" style="margin-top:10px;text-transform:none">${L('How Attack is made', 'Attack kaise bana')}</p>
+      <ul class="tips">
+        <li>${L('Blueprint DMG', 'Blueprint DMG')} (${o.tier}, ${r.star}★): <b>${f(r.card1)}</b></li>
+        <li>× ${L('calibration Weapon DMG', 'calibration Weapon DMG')} ${p(+o.wd || 0)}${o.gold ? ' × 1.15 (' + L('golden calibration', 'golden calibration') + ')' : ''} = ${L('weapon card', 'weapon card')} <b>${f(r.card)}</b></li>
+        <li>× ${L('style Attack', 'style Attack')} ${p(+o.sa || 0)} = ${L('panel Attack', 'panel Attack')} <b>${f(r.atk)}</b></li>
+        <li>${L('Bonus vs bare blueprint', 'Khaali blueprint ke muqable bonus')}: <b>+${p((r.atk / r.card1 - 1) * 100)}</b></li></ul>
+      <p class="note">${L('Tested on the game: tier, star, calibration and style formulas. Golden ×1.15 confirmed on 2 weapons.', 'Game test se pakka: tier, star, calibration aur style ka formula. Golden ×1.15 do weapons par pakka.')}</p></div>`
+    : `<p class="note">${L('Pick a weapon to see its panel.', 'Panel dekhne ke liye weapon chunein.')}</p>`;
+  return `${bgBackLink()}<div><p class="eyebrow">${esc(ui('gearH'))}</p><h2>${L('Own build', 'Own build')}</h2><p class="lead">${L('Choose your weapon, its tier, star and calibration. The panel below works like the game screen.', 'Apna weapon, us ka tier, star aur calibration chunein. Neeche game jaisa panel banega.')}</p></div>
+    <div class="res" style="display:flex;flex-direction:column;gap:10px">
+      <p class="label">${L('Weapon', 'Weapon')}</p>${sel('w', opt('', o.w, '—') + wl)}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div><p class="label">${L('Rarity', 'Rang')}</p>${sel('rar', ['gold','purple','blue','green'].map(k => opt(k, o.rar, k[0].toUpperCase() + k.slice(1))).join(''))}</div>
+        <div><p class="label">Tier</p>${sel('tier', Object.keys(OB_TIER).map(k => opt(k, o.tier, k)).join(''))}</div>
+        <div><p class="label">Star</p>${sel('star', stars)}</div></div>
+      <p class="label" style="margin-top:6px">${L('Calibration', 'Calibration')}</p>
+      ${num('wd', L('Weapon DMG %', 'Weapon DMG %'))}${num('sa', L('Style Attack % (e.g. Precision +10)', 'Style ka Attack % (jaise Precision +10)'))}
+      ${num('cr', 'Crit Rate %')}${num('cd', 'Crit DMG %')}${num('ws', 'Weakspot DMG %')}
+      <label class="label" style="display:flex;gap:8px;align-items:center;text-transform:none"><input type="checkbox" data-ob="gold" ${o.gold ? 'checked' : ''}> ${L('Golden calibration', 'Golden calibration')}</label>
+    </div>${panel}`;
+}
+document.addEventListener('change', e => { const el = e.target; if (!el || !el.dataset || !el.dataset.ob) return; const o = obState(), k = el.dataset.ob;
+  o[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (+el.value || 0) : el.value;
+  if (k === 'rar') o.star = Math.min(+o.star || 1, OB_RAR[o.rar]); if (k === 'star') o.star = +o.star; obSave(); render(true); });
+/* ---------- New in 0.08 (user's game, 2026-10-23) ---------- */
+(function(){
+  const w = {cls:'rifle', model:'SOCR', name:'SOCR Cosmic Visitor', kw:'frost', st:[['DMG','266'],['Fire Rate','515'],['MAG','30'],['Crit Rate','6%'],['Crit DMG','27%'],['Weakspot DMG','60%']],
+    kwd:'Creates an area that deals periodic Frost Elemental DMG and slows enemies.',
+    wk:['On weapon hit, there is a 10% probability to trigger Frost Vortex. The first hit after reload is guaranteed to trigger.',
+        'Every time you hit an enemy 5 times, fires 1 lock-on "Ice Spear": deals 130% Frost Vortex DMG to targets within a 2 meter radius.',
+        'When generating Frost Vortex, fires 2 Ice Spear that automatically attack targets within 50 meter vision.',
+        'On kill, fires 4 Ice Spear that automatically attack targets within 50 meter vision, cooldown 2 second(s).'],
+    dmg:'266', rate:'515', mag:'30', cr:'6%', cd:'27%', wd:'60%'};
+  if (!WEAPONS.some(x => x.name === w.name)) { WDATA.push(w); WEAPONS.push(Object.assign({}, w)); }
+  const g = {n:'Snowline Elite Vest', slot:'Tops', tier:'TIER V', ms:6, stats:[['HP','1924'],['Pollution Resist','16'],['Psi Intensity','64']], set:'Key Effect (Unique Effect)',
+    fx:['When a Frost Vortex is generated, effects triggered by it will trigger an additional 1 times. It does not generate an additional Frost Vortex. Each time a Frost Vortex is generated, Frost Vortex Damage increases by +5%, up to +25%.']};
+  if (!GFULL[g.n]) { GFULL[g.n] = g; const sl = SLOTS.find(x => x.key === 'top'); if (sl && sl.items.indexOf(g.n) < 0) sl.items.push(g.n); }
+})();
 function bgBackLink(){ return `<button class="link" data-act="bgmode" data-v="" style="padding:0 0 8px;align-self:flex-start">← ${esc(ui('bgModeBack'))}</button>`; }
 function bgWeaponFlow(){
   if (S.wpn === '') { S.wpn = undefined; S.bgMode = null; wsave(); return bgModeScreen(); }
