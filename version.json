@@ -1,5 +1,5 @@
 {
-  "version": 232,
+  "version": 233,
   "url": "https://raw.githubusercontent.com/Sherryapk-art/probuilderoh-updates/main/index.html",
-  "notes": "0.13: Own Build calibration from a list (style cards, then blueprints in gold/purple boxes, golden formula automatic). Stats panel now shows game-panel values only. Energy option (HP) in Settings. Engine: armor worn bonus on every star, Burn max stacks, Hardy Gloves explosion, Hammerhead Shark tested."
+  "notes": "0.14: New damage engine (counts every bounce, shrapnel, burn tick and keyword hit). Build Export (card preview and JSON code) and Import. Own Build remembers the slot you edit; tap fix for phones. Secondary & Melee combo guide. Fits the screen width (no side scrolling)."
 }

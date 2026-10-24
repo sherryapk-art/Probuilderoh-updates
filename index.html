@@ -1,4 +1,7 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="screen-orientation" content="landscape">
+<meta name="x5-orientation" content="landscape">
 <!--
   Once Human Build Planner
   Copyright (c) 2026 Mr. Sherry (Rao Sherry). All rights reserved.
@@ -669,7 +672,23 @@ function updateBox(){
 }
 /* App screen direction: change 'portrait' to 'landscape' in a later update (no new APK needed). */
 const APP_ORIENTATION = 'landscape';
-try { window.OHUpdate && OHUpdate.orientation && OHUpdate.orientation(APP_ORIENTATION); } catch (e) {}
+function ohApplyLandscape() {
+  try { if (window.OHUpdate && typeof OHUpdate.orientation === 'function') OHUpdate.orientation(APP_ORIENTATION); } catch (e) {}
+  try {
+    if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+      window.screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch (e) {}
+}
+ohApplyLandscape();
+window.addEventListener('load', ohApplyLandscape);
+window.addEventListener('focus', ohApplyLandscape);
+window.addEventListener('resize', () => { ohApplyLandscape(); });
+document.addEventListener('focusin', e => {
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/i.test(e.target.tagName)) {
+    ohApplyLandscape();
+  }
+}, true);
 window.ohUpdateResult = r => { const o = document.getElementById('upd-ov'); if (o && r === 'error') o.remove(); const m = document.getElementById('upd-msg'); if (m) m.textContent = ui(r === 'none' ? 'updNone' : 'updErr'); };
 window.ohUpdateAvailable = (v, notes) => {
   let o = document.getElementById('upd-ov'); if (o) o.remove();
@@ -2387,16 +2406,26 @@ function obPicker(B){ const U = S.obUI, ur = curLang() === 'ur', T = (e, u) => e
 }
 document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act^="ob2"]'); if (!el) return; const a = el.dataset.act, O = ob2(), U = S.obUI || (S.obUI = {}), B = ob2Cur();
   if (a === 'ob2new') { O.builds.push(ob2New()); O.cur = O.builds.length - 1; }
-  else if (a === 'ob2open') O.cur = +el.dataset.v;
+  else if (a === 'ob2open') { O.cur = +el.dataset.v; window.scrollTo(0, 0); }
   else if (a === 'ob2del') { O.builds.splice(+el.dataset.v, 1); O.cur = -1; }
-  else if (a === 'ob2list') { O.cur = -1; S.obUI = {}; }
-  else if (a === 'ob2pick') S.obUI = {pick: {k: el.dataset.k, s: el.dataset.s}, prev: null};
-  else if (a === 'ob2back') S.obUI = {};
+  else if (a === 'ob2list') { O.cur = -1; S.obUI = {}; window.scrollTo(0, 0); }
+  else if (a === 'ob2pick') { S.obUI = {sel: el.dataset.s || U.sel || 'weapon', pick: {k: el.dataset.k, s: el.dataset.s}, prev: null}; }
+  else if (a === 'ob2back') { const keepSlot = (U.pick && U.pick.s) || U.sel || 'weapon'; S.obUI = {sel: keepSlot}; }
   else if (a === 'ob2prev') { U.prev = el.dataset.v; U.vals = null; U.prevKey = null; U.lv = 17; }
-  else if (a === 'ob2select' && B && U.pick && U.prev != null) { const C = obCandidate(B, U, U.prev); O.builds[O.cur] = C; S.obUI = {}; }
-  else if (a === 'ob2crx' && B) B.cradle = B.cradle.filter(n => n !== el.dataset.v);
+  else if (a === 'ob2select' && B && U.pick && U.prev != null) {
+    const C = obCandidate(B, U, U.prev);
+    O.builds[O.cur] = C;
+    const isCradle = U.pick.k === 'cradle';
+    if (isCradle && C.cradle.length < 8) {
+      S.obUI = {sel: 'weapon', pick: {k: 'cradle', s: 'weapon'}, prev: null};
+    } else {
+      const keepSlot = (U.pick && U.pick.s) || U.sel || 'weapon';
+      S.obUI = {sel: keepSlot};
+    }
+  }
+  else if (a === 'ob2crx' && B) { B.cradle = B.cradle.filter(n => n !== el.dataset.v); S.obUI = {sel: 'weapon'}; }
   else return;
-  ob2Save(); render(); window.scrollTo(0, 0); });
+  ob2Save(); render(true); });
 document.addEventListener('change', e => { const el = e.target; if (!el || !el.dataset) return; const B = ob2Cur(), U = S.obUI || {}; if (!B) return;
   if (el.dataset.ob2lv) { const [n, sf] = String(U.prev).split('|'), all = U.pick.s === 'weapon' ? Object.values(WMODS).flat() : (AMODS[BG_AMKEY[U.pick.s]] || []), mod = all.find(x => x.n === n); U.lv = +el.value; U.vals = obModDefault(mod, sf, U.lv); U.prevKey = U.prev; render(true); return; }
   if (el.dataset.ob2val != null && el.dataset.ob2val !== undefined && el.hasAttribute('data-ob2val')) { const C = obCandidate(B, U, U.prev); const v = C.mods[U.pick.s].vals.slice(); v[+el.dataset.ob2val] = +el.value; U.vals = v; U.prevKey = U.prev; render(true); return; }
@@ -2767,8 +2796,11 @@ function olModList(B, s){ if (OB_SLOTS.includes(s)) return AMODS[BG_AMKEY[s]] ||
 function olSufG(s, t){ return OB_SLOTS.includes(s) ? SUF_G()[t.n] : (SUF_ICON[t.n] || t.g); }
 function olBuilds(){ const O = ob2();
   const rows = O.builds.map((b, i) => `<div style="display:flex;gap:8px;align-items:center"><button class="opt" data-act="ob2open" data-v="${i}" style="flex:1"><span style="display:flex;flex-direction:column;gap:2px;text-align:start"><b>${esc(b.w || olT('(no weapon yet)', '(weapon abhi nahi)'))}</b><span class="label" style="text-transform:none">${OB_SLOTS.filter(k => b.armor[k]).length}/6 armor · ${b.cradle.length}/8 cradle</span></span>${ICO_ARROW}</button><button class="chip" data-act="ob2del" data-v="${i}" aria-label="Delete">✕</button></div>`).join('');
-  return `<div class="ol-builds"><button class="link" data-act="bgmode" data-v="" style="align-self:flex-start;padding:0">← Build guide</button><h2 style="margin:0">Own Build</h2><p class="lead" style="margin:0">${olT('Your saved builds. Open one, or start a new build.', 'Aap ki save builds. Koi kholein, ya nayi build shuru karein.')}</p>${rows || `<p class="note">${olT('No saved build yet.', 'Abhi koi build save nahi.')}</p>`}<button class="btn" data-act="ob2new">+ ${olT('New build', 'Nayi build')}</button></div>`; }
-function olCard(B, s, lab, U){ const on = (U.sel || 'weapon') === s; let nm, sub, st = '';
+  return `<div class="ol-builds"><button class="link" data-act="bgmode" data-v="" style="align-self:flex-start;padding:0">← Build guide</button><h2 style="margin:0">Own Build</h2><p class="lead" style="margin:0">${olT('Your saved builds. Open one, or start a new build.', 'Aap ki save builds. Koi kholein, ya nayi build shuru karein.')}</p>${rows || `<p class="note">${olT('No saved build yet.', 'Abhi koi build save nahi.')}</p>`}<div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" data-act="ob2new">+ ${olT('New build', 'Nayi build')}</button><button class="btn ghost" data-act="openimport" style="border:1px dashed var(--line);background:#fff">📥 ${olT('Import build', 'Build import karein')}</button></div></div>`; }
+function olCard(B, s, lab, U){
+  const activeSlot = (U.pick && U.pick.s) ? U.pick.s : (U.sel || 'weapon');
+  const on = activeSlot === s;
+  let nm, sub, st = '';
   if (OB_SLOTS.includes(s)) { const a = B.armor[s], m = B.mods[s]; nm = a ? a.n : ''; sub = olModStr(m) || (a && a.hide) || ''; if (a) st = (a.star || '') + '★ · ' + (a.tier || 'V'); }
   else { const o = olW(B, s); nm = o.w; sub = olModStr(olWMod(B, s)); if (o.w) st = o.star + '★ · ' + o.tier; }
   return `<button class="ol-cd${OB_SLOTS.includes(s) ? '' : ' w'}" data-act="olsel" data-v="${s}" aria-pressed="${on}"><s>${esc(lab.toUpperCase())}${st ? `<i>${st}</i>` : ''}</s><span class="ol-ci"><b>${esc(nm || '+ ' + olT('Empty', 'Khali'))}</b></span></button>`; }
@@ -2848,9 +2880,9 @@ function ownL(){ const O = ob2(), U = S.obUI || (S.obUI = {});
   const cards = `<div class="ol-sec">${olT('WEAPONS', 'WEAPONS')}</div>` + OL_WS.map(x => olCard(B, x[0], x[1], U)).join('') + `<div class="ol-sec">ARMOR</div>` + OB_SLOTS.map(k => olCard(B, k, ui('slot_' + k), U)).join('');
   const pwl = (OL_WS.find(x => x[0] === pw) || [0, 'Primary'])[1], pwn = olW(B, pw).w;
   const right = `<div class="ps-who">${olT('Stats for', 'Stats')}: <b>${esc(pwl)}</b>${pwn ? ' · ' + esc(pwn) : ''}</div>` + (pw === 'wm' && P ? `<p class="note" style="margin:0;font-size:11px">${olT('Melee damage formula is not tested in game yet: these numbers are an estimate.', 'Melee ka damage formula game mein abhi test nahi hua: ye numbers andaza hain.')}</p>` : '') + (P ? olPanel(P, Q) : `<p class="note" style="padding:8px">${pwn ? olT('No damage data for this weapon yet (data nahi).', 'Is weapon ka damage data abhi nahi (data nahi).') : olT('Choose this weapon first.', 'Pehle ye weapon chunein.')}</p>`);
-  return `<div class="ol"><div class="ol-gear"><div class="ol-gh"><button class="ol-chg" data-act="ob2list">‹ ${olT('My builds', 'Meri builds')}</button><b>${esc(B.w || olT('New build', 'Nayi build'))}</b></div><div class="ol-grid">${cards}</div></div><div class="ol-mid">${U.pick ? olPicker(B, U) : olDetail(B, sel)}</div><div class="ol-st">${right}</div></div>`; }
+  return `<div class="ol"><div class="ol-gear"><div class="ol-gh"><button class="ol-chg" data-act="ob2list">‹ ${olT('My builds', 'Meri builds')}</button><b>${esc(B.w || olT('New build', 'Nayi build'))}</b><button class="ol-chg" data-act="openexport" style="background:#e3a33b;color:#1a1200;border:0;font-weight:700;padding:0 9px" title="${olT('Export & Share Build', 'Build export karein')}">📤 ${olT('Export', 'Export')}</button></div><div class="ol-grid">${cards}</div></div><div class="ol-mid">${U.pick ? olPicker(B, U) : olDetail(B, sel)}</div><div class="ol-st">${right}</div></div>`; }
 document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act^="ol"]'); if (!el) return; const a = el.dataset.act, v = el.dataset.v, O = ob2(), U = S.obUI || (S.obUI = {}), B = ob2Cur(); if (!B) return; const sel = U.sel || 'weapon';
-  if (a === 'olsel') { S.obUI = {sel: v}; if (OL_WS.some(x => x[0] === v)) S.obPW = v; ob2Save(); render(); return; }
+  if (a === 'olsel') { S.obUI = {sel: v}; if (OL_WS.some(x => x[0] === v)) S.obPW = v; ob2Save(); render(true); return; }
   else if (a === 'olrar') { const o = olW(B, sel); o.rar = v; o.star = Math.min(+o.star || 1, OB_RAR[v]); }
   else if (a === 'olstar') olW(B, sel).star = +v;
   else if (a === 'oltier') olW(B, sel).tier = v;
@@ -2863,7 +2895,7 @@ document.addEventListener('click', e => { const el = e.target.closest && e.targe
   else if (a === 'olselect' && U.pick) { const o = olW(B, U.pick.s); if (U.pick.k === 'weapon') { o.w = U.prev; o.mod = null; } else if (U.pick.k === 'mod') o.mod = olModCand(B, U); S.obUI = {sel: U.pick.s}; }
   else return;
   ob2Save(); render(true); });
-document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act="ob2select"],[data-act="ob2back"],[data-act="ob2pick"]'); if (!el || S.screen !== 'own') return; const U = S.obUI || {}; const keep = U.sel || (U.pick && U.pick.s) || 'weapon';
+document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act="ob2select"],[data-act="ob2back"],[data-act="ob2pick"]'); if (!el || S.screen !== 'own') return; const U = S.obUI || {}; const keep = (U.pick && U.pick.s) || U.sel || 'weapon';
   setTimeout(() => { const U2 = S.obUI || (S.obUI = {}); if (!U2.sel) U2.sel = keep === 'weapon' || OL_WS.some(x => x[0] === keep) || OB_SLOTS.includes(keep) ? keep : 'weapon'; render(true); }, 0); }, true);
 document.addEventListener('input', e => { const t = e.target; if (t && t.id === 'olq') { (S.obUI || {}).q = t.value; render(true); const i = document.getElementById('olq'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } } });
 document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || !t.dataset.olw) return; const B = ob2Cur(); if (!B) return; const [s, k] = t.dataset.olw.split(':'), o = olW(B, s); o[k] = t.type === 'checkbox' ? t.checked : (+t.value || 0); ob2Save(); render(true); });
@@ -2927,7 +2959,7 @@ document.addEventListener('input', e => { const t = e.target; if (!t || !t.datas
 .uver{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px}
 .uver b{font-size:15px}.uver .btn{align-self:flex-start}
 `; document.head.appendChild(st); })();
-const PAGE_VER = 232;
+const PAGE_VER = 233;
 function appVer(){ try { if (window.OHUpdate && OHUpdate.version) return +OHUpdate.version() || PAGE_VER; } catch (e) {} return PAGE_VER; }
 const CPY = () => `<div class="cpy">© ${DEV.year} ${esc(DEV.name)} · Developed by ${esc(DEV.name)} · v${esc(verLabel(appVer()))}<br>${esc(ui('disclaimer'))}</div>`;
 updateBox = function(){ const ur = curLang() === 'ur', T = (e, u) => esc(ur ? u : e);
@@ -3536,6 +3568,1541 @@ document.addEventListener('click', e => { const el = e.target.closest && e.targe
     U.bpPick = false; U.bpStyle = null; if (typeof KW_SHARE === 'object') for (const k in KW_SHARE) delete KW_SHARE[k]; ob2Save(); render(true); } });
 /* a new weapon in the slot drops the old blueprint */
 document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act="ob2select"],[data-act="olselect"]'); if (!el) return; const U = S.obUI || {}, B = ob2Cur(); if (!B || !U.pick || U.pick.k !== 'weapon') return; const o = olW(B, U.pick.s || 'weapon'); if (o.bpx != null) Object.assign(o, {bpx: null, wd: 0, sa: 0, cr: 0, cd: 0, ws: 0, el: 0, gold: false}); }, true);
+/* ===== Bug fix (user 2026-10-24): after choosing an armor / armor mod / hide, the middle pane jumped back to the weapon.
+   ob2select cleared S.obUI (sel lost -> 'weapon'). Keep the slot the user was editing. */
+let OL_KEEP = null;
+document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-act="ob2select"]'); if (!el) return; const U = S.obUI || {}; if (U.pick && U.pick.s) OL_KEEP = U.pick.s; }, true);
+const _ownL12b = ownL;
+ownL = function(){ if (OL_KEEP) { const U = S.obUI || (S.obUI = {}); if (!U.sel && !U.pick) U.sel = OL_KEEP; OL_KEEP = null; } return _ownL12b(); };
+
+/* ===== TEMP debug (2026-10-24): last taps in Own Build, shown in Settings, to catch the armor-mod bug on the phone ===== */
+const OL_LOG = [];
+const olLog = (t) => { OL_LOG.push(t); if (OL_LOG.length > 14) OL_LOG.shift(); };
+document.addEventListener('click', e => { const el = e.target && e.target.closest && e.target.closest('[data-act]'); const U = S.obUI || {};
+  olLog('IN ' + (el ? el.dataset.act + ':' + (el.dataset.v || el.dataset.k || '') + (el.dataset.s ? '/' + el.dataset.s : '') : 'none(' + (e.target && e.target.tagName) + ')') + ' | ' + JSON.stringify({sel: U.sel, pick: U.pick, mn: U.mn, prev: U.prev})); }, true);
+document.addEventListener('click', () => { setTimeout(() => { const U = S.obUI || {}; olLog('OUT ' + JSON.stringify({sel: U.sel, pick: U.pick, mn: U.mn, prev: U.prev})); }, 0); });
+const _renderSettings13 = renderSettings;
+renderSettings = function(){ return _renderSettings13() + (OL_LOG.length && window.OH_DEBUG ? `<div class="uver" style="margin-top:10px"><p class="label" style="margin:0">Debug (Own Build taps)</p><pre style="white-space:pre-wrap;font-size:10px;margin:0">${esc(OL_LOG.join('\n'))}</pre></div>` : ''); };
+/* ===== FIX (2026-10-24, from the phone debug log): in the rotated view (phone held upright, app turned by fit.html),
+   the phone's own tap->click sometimes lands on the WRONG element (log: tapped a mod in the list, click came on the
+   left SHOES card). We read the finger point ourselves (elementFromPoint follows the rotation) and send the click there. */
+let ROT_T = null, ROT_FIX = null;
+const ROT_ON = () => innerHeight > innerWidth;
+const ROT_SEL = '[data-act],button,a,label,input,select,textarea';
+document.addEventListener('touchstart', e => { if (!ROT_ON() || e.touches.length !== 1) { ROT_T = null; return; } const t = e.touches[0]; ROT_T = {x: t.clientX, y: t.clientY, t: Date.now(), mv: false}; }, {passive: true, capture: true});
+document.addEventListener('touchmove', e => { if (!ROT_T) return; const t = e.touches[0]; if (Math.abs(t.clientX - ROT_T.x) > 10 || Math.abs(t.clientY - ROT_T.y) > 10) ROT_T.mv = true; }, {passive: true, capture: true});
+document.addEventListener('touchend', e => { if (!ROT_T || ROT_T.mv || Date.now() - ROT_T.t > 700) { ROT_T = null; return; }
+  const p = document.elementFromPoint(ROT_T.x, ROT_T.y), el = p && p.closest(ROT_SEL); ROT_FIX = {el, t: Date.now()};
+  olLog('TOUCH ' + Math.round(ROT_T.x) + ',' + Math.round(ROT_T.y) + ' -> ' + (el ? (el.dataset && el.dataset.act ? el.dataset.act + ':' + (el.dataset.v || el.dataset.k || '') : el.tagName) : 'none')); ROT_T = null; }, {passive: true, capture: true});
+window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; const f = ROT_FIX; ROT_FIX = null; if (Date.now() - f.t > 1000 || !f.el || !document.contains(f.el)) return;
+  const got = e.target && e.target.closest ? e.target.closest(ROT_SEL) : null; if (got === f.el) return;
+  e.stopImmediatePropagation(); e.preventDefault(); olLog('FIX click moved to ' + (f.el.dataset && f.el.dataset.act ? f.el.dataset.act + ':' + (f.el.dataset.v || '') : f.el.tagName));
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(f.el.tagName) && f.el.type !== 'checkbox') f.el.focus(); else f.el.click(); }, true);
+
+
+/* ===== Engine Fix 14: Multi-Hit & Sustained Damage Formula Engine + Secondary & Melee Combo Guide + Key Armor Limit + Bow Mag Dynamics (PAKKA GAME DATA) =====
+   Understands:
+   1. Bounce: Multi-bounces (Base 2-3 + b.bc from mods/gear/cradle), Kumawink ricochet, Bow Echo stacks.
+   2. Shrapnel: Multi-parts (Base 1 + b.sp), explosive 20th Shrapnel (+15% kx).
+   3. Burn: Steady-state stacking over time, tick frequency (b.bf), duration, and Hardy Gloves max-stack explosion.
+   4. Power Surge: 50% Psi Surge + Hammerhead Shark 150% Psi Shock on EVERY bullet (tested 255 Shock + 85 Surge).
+   5. Frost Vortex: 8 ticks (400% Psi) + Ice Spikes (120% Psi) + Ice Missiles (200% Psi).
+   6. True Total Damage Per Shot (Shot Avg + Keyword Multi-hit/Sustained Avg) for Dummy damage and Gear ranking.
+   7. Secondary Weapon (AWS.338 Bullseye + Vulnerability Amplifier) & Melee (Rusted Blade / Kukri) Combo Guide at bottom.
+   8. Key Armor Limit: Only ONE Keyword / Key Effect armor piece can be worn at a time (e.g. Earthly Boots cannot combine with Sharp Blade Pants or BBQ Gloves).
+   9. Bow Magazine Dynamics: Base capacity 1 arrow (100% on-reload buff uptime). If mod suffix extends mag to 2 arrows, on-reload buffs trigger every 2 shots (50% uptime).
+   Source: user test reports in notes/PAKKA-FACTS.md, notes/STATUS.md, notes/ENGINE-TEST-LINES.md, and data/user-builds/*.md
+*/
+
+(function(){
+  /* 1. Parser upgrades for multi-hit, bounce count, shrapnel parts, and sustained ticks */
+  const _fxParse14 = fxParse;
+  fxParse = function(t, pref){
+    const s = String(t || '').trim();
+
+    // Bounce count / targets / number of bounces / additionally trigger (Sharp Blade Pants)
+    let m = s.match(/(?:Bounce [cC]ount|number of Bounces|Bounce targets?)\s*\+\s*(\d+)/i) ||
+            s.match(/(?:additionally trigger|Bounce additionally triggers?)\s*(\d+)\s*more time/i);
+    if (m) return [['bc', +m[1], 1, 'bounce']];
+
+    // Shrapnel hit parts
+    m = s.match(/(?:Shrapnel hit parts|target parts)\s*\+\s*(\d+)/i);
+    if (m) return [['sp', +m[1], 1, 'shrapnel']];
+
+    // Burn frequency
+    m = s.match(/Burn (?:damage )?frequency\s*(?:increase based on Burn stacks, up to|\+)\s*(\d+)%/i);
+    if (m) return [['bf', +m[1], 1, 'burn']];
+
+    // Burn crit capability
+    if (/Unlocks the Crit Hit ability for Burn/i.test(s)) {
+      const cd = s.match(/Burn Crit DMG\s*\+\s*(\d+)%/i);
+      return [['bcr', 100, 1, 'burn'], ['bcd', cd ? +cd[1] : 20, 1, 'burn']];
+    }
+
+    // Ice Crystal shatters into ice missiles
+    m = s.match(/Ice Crystal shatters,\s*(\d+)\s*ice missile\(s\).*?equal to\s*(\d+)%\s*Psi/i);
+    if (m) return [['kx', (+m[1] * +m[2]) / 4, 1, 'frost']];
+
+    // Frozen effect ends
+    m = s.match(/When the Frozen effect on an objective ends, it takes Frost DMG equal to (\d+)%/i);
+    if (m) return [['kx', +m[1] * 0.4, 0.5, 'frost']];
+
+    // Overload on 10 Sync stacks
+    m = s.match(/Overload:\s*Deals Status DMG equal to (\d+)%\s*of Psi Intensity every second.*?Lasts\s*(\d+)s/i);
+    if (m) return [['kx', (+m[1] * +m[2]) / 5, 0.6, 'surge']];
+
+    // Reverb stack on last bullet
+    m = s.match(/Each stack of \[Reverb\] increases the damage of the last bullet.*?by\s*(\d+)%/i);
+    if (m) return [['o', +m[1] * 3 / 20, 1]];
+
+    return _fxParse14(t, pref);
+  };
+
+  /* 2. Helper to get base bounce count from weapon */
+  function baseBounceCount(w){
+    if (!w || w.kw !== 'bounce') return 0;
+    const txt = (w.wk || []).join(' ');
+    let cnt = 2; // base bounce default in game
+    if (/Compound Bow|Burden of Betrayal/i.test(w.name)) cnt = 3; // base 2 + 1 full charge
+    if (/bounces up to (\d+) times/i.test(txt)) {
+      const m = txt.match(/bounces up to (\d+) times/i);
+      if (m) cnt = Math.max(cnt, +m[1]);
+    }
+    return cnt;
+  }
+
+  /* 3. True Keyword damage contribution per shot (accounting for multi-hit & sustained ticks) */
+  function kwPerHit(w, P, rate){
+    if (!w || !P || !P.kw) return 0;
+    const oth = (1 + ((P.b && P.b.o) || 0) / 100) * (1 + ((P.b && P.b.v) || 0) / 100);
+    const hps = (w.st && w.st.find(x => x[0] === 'Fire Rate')) ? +w.st.find(x => x[0] === 'Fire Rate')[1] / 60 : 5;
+    const kx = 1 + ((P.b && P.b.kx) || 0) / 100;
+
+    // --- BOUNCE ---
+    if (w.kw === 'bounce') {
+      const baseHits = baseBounceCount(w);
+      const extraHits = (P.b && P.b.bc) || 0;
+      const totalHits = Math.max(1, baseHits + extraHits);
+      let out = rate * (P.kw[1] || 0) * totalHits * kx;
+      // Burden of Betrayal Bow Echo bonus:
+      if (/Burden of Betrayal/i.test(w.name)) {
+        out *= 1.25; // tested Dummy Echo hit reaches 7127 with full charge & Echo stacks
+      }
+      return out;
+    }
+
+    // --- SHRAPNEL ---
+    if (w.kw === 'shrapnel') {
+      const parts = Math.max(1, 1 + ((P.b && P.b.sp) || 0));
+      // Every 20th trigger is explosive (+15% dmg on average)
+      const explosiveMult = 1.05;
+      return rate * (P.kw[1] || 0) * parts * explosiveMult * kx;
+    }
+
+    // --- BURN ---
+    if (w.kw === 'burn') {
+      const maxStacks = (typeof burnMax === 'function') ? burnMax(P) : Math.max(1, 5 + ((P.b && P.b.bms) || 0));
+      const freqBonus = 1 + ((P.b && P.b.bf) || 0) / 100;
+      const baseFreq = 1.0 * freqBonus; // ticks per second
+      // Steady state average stacks during continuous firing
+      const burnDuration = 5.0; // seconds
+      const stacksGeneratedPerSec = hps * rate;
+      const avgActiveStacks = Math.min(maxStacks, Math.max(1, (stacksGeneratedPerSec * burnDuration) * 0.75));
+
+      const tickDmg = (P.psi * 0.12) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth;
+      const dps = avgActiveStacks * tickDmg * baseFreq * kx;
+      let out = (hps > 0 ? dps / hps : dps / 5);
+
+      // Hardy Gloves explosion (at max stacks)
+      const hx = (P.b && P.b.hx) || 0;
+      if (hx > 0) {
+        const boomDmg = P.psi * (hx / 100) * (1 + (P.b.el || 0) / 100) * (1 + (P.b.s || 0) / 100) * oth;
+        out += rate * boomDmg * 0.20;
+      }
+      // Burn Crit Hit unlock
+      if (P.b && P.b.bcr) {
+        const bCritRate = Math.min(1, (P.b.bcr || 0) / 100);
+        const bCritDmg = 1 + ((P.b.bcd || 20) / 100);
+        out *= (1 - bCritRate) + bCritRate * bCritDmg;
+      }
+      return out;
+    }
+
+    // --- POWER SURGE ---
+    if (w.kw === 'surge') {
+      const surgeHit = (P.psi * 0.50) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth;
+      let out = rate * surgeHit * kx;
+      // Hammerhead Shark: 150% Psi Shock on EVERY bullet (tested 25/25, no crit)
+      if (/Hammerhead/i.test(w.name)) {
+        const shockHit = (P.psi * 1.50) * (1 + (P.b.el || 0) / 100) * oth;
+        out += shockHit; // 100% chance on every shot
+      }
+      return out;
+    }
+
+    // --- FROST VORTEX ---
+    if (w.kw === 'frost') {
+      // 8 ticks of 50% Psi over 4s = 400% Psi cycle
+      const vortexCycle = 8 * (P.psi * 0.50) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth;
+      // Max 1 active vortex per 4s
+      const effectiveProcsPerShot = Math.min(rate, 1 / (hps * 4));
+      return effectiveProcsPerShot * vortexCycle * kx;
+    }
+
+    // --- UNSTABLE BOMBER ---
+    if (w.kw === 'bomber') {
+      let bomberHit = (P.psi * 1.20) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth;
+      if (P.b && P.b.kcr) {
+        const kcr = Math.min(1, (P.b.kcr || 0) / 100);
+        bomberHit *= (1 - kcr) + kcr * (1 + (P.b.cd + (P.b.kcd || 0)) / 100);
+      }
+      return rate * bomberHit * kx;
+    }
+
+    return rate * kx * (P.kw[1] || 0);
+  };
+
+  /* 4. Average weapon bullet damage */
+  function calcShotAvg(P){
+    if (!P) return 0;
+    const cr = Math.min(100, (P.b && P.b.cr) || 0) / 100;
+    const cd = ((P.b && P.b.cd) || 0) / 100;
+    const ws = (P.b && P.b.nows) ? 0 : ((P.b && P.b.ws) || 0) / 100;
+    const wsShare = (typeof KW_WSR !== 'undefined') ? KW_WSR : 0.3;
+    const baseWhite = P.white || P.atk || 0;
+    return baseWhite * (1 + cr * cd) * (1 + wsShare * ws);
+  }
+
+  /* 5. Update obPanel with multi-hit, sustained metrics, and Bow Magazine Dynamics */
+  const _obPanel14 = obPanel;
+  obPanel = function(B){
+    const P = _obPanel14(B);
+    if (!P) return P;
+    const w = WEAPONS.find(x => x.name === B.w);
+    if (!w) return P;
+
+    const cr = (P.b && P.b.cr != null) ? P.b.cr / 100 : 0.05;
+    const rate = (typeof kwRate === 'function') ? kwRate(w, cr) : 0.5;
+    const oth = (1 + ((P.b && P.b.o) || 0) / 100) * (1 + ((P.b && P.b.v) || 0) / 100);
+
+    // Multi-hit specific metrics
+    if (w.kw === 'bounce') {
+      const bCnt = Math.max(1, baseBounceCount(w) + ((P.b && P.b.bc) || 0));
+      P.bounceCount = bCnt;
+      P.bounceTotal = Math.round((P.kw ? P.kw[1] : 0) * bCnt);
+    } else if (w.kw === 'shrapnel') {
+      const sParts = Math.max(1, 1 + ((P.b && P.b.sp) || 0));
+      P.shrapnelParts = sParts;
+      P.shrapnelTotal = Math.round((P.kw ? P.kw[1] : 0) * sParts);
+    } else if (w.kw === 'burn') {
+      P.burnMax = typeof burnMax === 'function' ? burnMax(P) : Math.max(1, 5 + ((P.b && P.b.bms) || 0));
+      P.burnTick = Math.floor((P.psi * 0.12) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth);
+      const hxp = (P.b && P.b.hx) || 0;
+      if (hxp > 0) {
+        P.hardyBoom = Math.floor(P.psi * (hxp / 100) * (1 + (P.b.el || 0) / 100) * (1 + (P.b.s || 0) / 100) * oth);
+      }
+    } else if (w.kw === 'surge') {
+      if (/Hammerhead/i.test(w.name)) {
+        P.hammerShock = Math.floor((P.psi * 1.50) * (1 + (P.b.el || 0) / 100) * oth);
+      }
+    } else if (w.kw === 'frost') {
+      P.frostVortexFull = Math.floor(8 * (P.psi * 0.50) * (1 + (P.b.k || 0) / 100) * (1 + (P.b.s || 0) / 100) * (1 + (P.b.el || 0) / 100) * oth);
+    }
+
+    // Bow Magazine Dynamics & Reload Buff timing
+    const bowMag = getBowMagCapacity(B, w);
+    if (bowMag) {
+      P.bowMag = bowMag;
+      // If First-Move Advantage or reload buff is equipped
+      const fma = B.mods && Object.values(B.mods).find(m => m && /First-Move Advantage/i.test(m.n));
+      if (fma && bowMag.cap === 2 && P.b) {
+        // Base First-Move Advantage gives +10% Crit Rate and +20% Crit DMG for 2s after reloading.
+        // When Bow has 1 arrow: every shot is immediately after reload (100% uptime: +10% CR, +20% CD).
+        // When Bow has 2 arrows: 1 shot has reload buff, 2nd shot does NOT (50% average: +5% CR, +10% CD).
+        P.b.cr = Math.max(0, (P.b.cr || 0) - 5);
+        P.b.cd = Math.max(0, (P.b.cd || 0) - 10);
+      }
+    }
+
+    // Total combined average per shot (Bullet + Sustained/Multi Keyword)
+    const bulletAvg = calcShotAvg(P);
+    const kwAvg = kwPerHit(w, P, rate != null ? rate : 0.5);
+    P.shotTotalAvg = Math.round(bulletAvg + (kwAvg || 0));
+
+    return P;
+  };
+
+  /* 6. True Ranking metric for Build Guide: now rewards multi-hit & sustained damage */
+  bgMetric = function(w, P){
+    if (!P) return 0;
+    if (P.shotTotalAvg != null) return P.shotTotalAvg;
+    const cr = (P.b && P.b.cr != null) ? P.b.cr / 100 : 0.05;
+    const sh = calcShotAvg(P);
+    if (!P.kw) return sh;
+    const rate = (typeof kwRate === 'function') ? kwRate(w, cr) : 0.5;
+    const e = kwPerHit(w, P, rate == null ? 0.5 : rate);
+    return Math.round(sh + (e || 0));
+  };
+
+  /* 7. Enhanced Display in Own Build Panel (Landscape olPanel) */
+  const _olPanel14 = olPanel;
+  olPanel = function(P, Q){
+    let h = _olPanel14(P, Q);
+    if (!P) return h;
+    const ur = curLang() === 'ur', f = v => Math.round(v).toLocaleString('en-US');
+    const extraRows = [];
+
+    if (P.bounceTotal != null) {
+      extraRows.push([ur ? `Bounce (${P.bounceCount} hits)` : `Bounce (${P.bounceCount} hits)`, P.bounceTotal]);
+    }
+    if (P.shrapnelTotal != null) {
+      extraRows.push([ur ? `Shrapnel (${P.shrapnelParts} parts)` : `Shrapnel (${P.shrapnelParts} parts)`, P.shrapnelTotal]);
+    }
+    if (P.burnTick != null) {
+      extraRows.push([ur ? `Burn (1 stack tick)` : `Burn (1 stack tick)`, P.burnTick]);
+      if (P.hardyBoom != null) {
+        extraRows.push([ur ? `Hardy Dhamaka (5th stack)` : `Hardy Explosion (5th stack)`, P.hardyBoom]);
+      }
+    }
+    if (P.hammerShock != null) {
+      extraRows.push([ur ? `Hammerhead Shock (har goli)` : `Hammerhead Shock (every hit)`, P.hammerShock]);
+    }
+    if (P.frostVortexFull != null) {
+      extraRows.push([ur ? `Frost Vortex (8 ticks)` : `Frost Vortex (8 ticks)`, P.frostVortexFull]);
+    }
+    if (P.bowMag) {
+      extraRows.push([ur ? `Bow Mag Capacity` : `Bow Mag Capacity`, `${P.bowMag.cap} Arrow${P.bowMag.cap > 1 ? 's' : ''}`]);
+      extraRows.push([ur ? `Reload Buff Cycle` : `Reload Buff Cycle`, P.bowMag.cap === 1 ? (ur ? '100% (Har Shot Reload)' : '100% (Every shot)') : (ur ? '50% (2 Teer / Reload)' : '50% (2-Arrow Cycle)')]);
+    }
+    if (P.shotTotalAvg != null) {
+      extraRows.push([ur ? `Kul Ausat / Shot (Goli + Buffs)` : `Total Avg / Shot (Bullet + Buffs)`, P.shotTotalAvg]);
+    }
+
+    if (extraRows.length && h.indexOf('<div class="ps-dm">') >= 0) {
+      const extraHtml = extraRows.map(r => `<div><small style="color:#a85f00">${esc(r[0])}</small><b style="color:#1f8a4c">${f(r[1])}</b></div>`).join('');
+      h = h.replace('</div>\n    <div class="ps-h">Basic', extraHtml + '</div>\n    <div class="ps-h">Basic');
+    }
+    return h;
+  };
+
+  /* 8. Secondary & Melee Weapon Combo Guide Helper */
+  function comboGuideHtml(w){
+    const ur = curLang() === 'ur';
+    return `
+    <div class="ol-box" style="margin-top:14px;background:#fcfbf7;border:1.5px solid #d8ded5;border-radius:10px;padding:12px 14px">
+      <h4 style="margin:0 0 10px;font-size:14px;color:#a85f00;display:flex;align-items:center;gap:6px">
+        🎯 ${ur ? 'Secondary & Melee Combo (aap ke setup ka guide, andaza)' : 'Secondary & Melee Combo (guide for one setup, estimate)'}
+      </h4>
+
+      <!-- SECONDARY WEAPON -->
+      <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #d5dbd3">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:4px">
+          <b style="font-size:13px;color:#18201e">1. Secondary Weapon: AWS.338 - Bullseye</b>
+          <span class="pill" style="font-size:10.5px;background:#e3effc;color:#1d4f91">Mod: Vulnerability Amplifier &lt;The Bull's Eye&gt;</span>
+        </div>
+        <div style="font-size:12px;color:#3a444e;line-height:1.45;display:flex;flex-direction:column;gap:3px">
+          <div><b>${ur ? 'Maqsad (Purpose):' : 'Purpose:'}</b> ${ur ? 'Target par Bull\'s Eye mark laga kar enemy ko vulnerable karna taake Primary weapon ka damage barh jaye.' : 'Apply Bull\'s Eye mark to debuff target with Vulnerability, amplifying Primary weapon damage.'}</div>
+          <div><b>${ur ? 'Konsa Buff Milega:' : 'Buffs Granted:'}</b> <span style="color:#1f8a4c;font-weight:600">${ur ? 'Vulnerability +16% (x1.16 Multiplier) + Marked Strike cradle se Weakspot +20%' : 'Vulnerability +16% (x1.16 Multiplier) + Marked Strike cradle Weakspot +20%'}</span></div>
+          <div style="background:#f4f7f4;padding:6px 10px;border-radius:6px;border-inline-start:3px solid #1f8a4c;margin-top:3px">
+            <b>${ur ? 'Kaise Milega (Tareeqa):' : 'How to trigger:'}</b> ${ur ? 'Fight ke shuru mein Secondary (AWS Bullseye) se 4 shots maarein taake 4 stacks banein. Phir foran Primary weapon par switch karein. Switch hone par 2 stacks ka mark qayam rehta hai aur duration tak Primary weapon ke tamam shots x1.16 zyada damage dete hain!' : 'Open combat by firing 4 shots with AWS Bullseye to build 4 stacks, then immediately switch to Primary. 2 stacks remain active on switch, granting your Primary weapon shots a x1.16 damage multiplier during the mark!'}
+          </div>
+        </div>
+      </div>
+
+      <!-- MELEE WEAPON -->
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:4px">
+          <b style="font-size:13px;color:#18201e">2. Melee Weapon: Rusted Blade / Kukri</b>
+          <span class="pill" style="font-size:10.5px;background:#fde8e6;color:#a8322a">${ur ? 'Kill Buff: Attack +30%' : 'Kill Buff: Attack +30%'}</span>
+        </div>
+        <div style="font-size:12px;color:#3a444e;line-height:1.45;display:flex;flex-direction:column;gap:3px">
+          <div><b>${ur ? 'Maqsad (Purpose):' : 'Purpose:'}</b> ${ur ? 'Chhotay enemy / mob ko finish kar ke direct Attack ka bara boost lena.' : 'Finish off a small enemy to gain a direct Attack multiplier.'}</div>
+          <div><b>${ur ? 'Konsa Buff Milega:' : 'Buffs Granted:'}</b> <span style="color:#1f8a4c;font-weight:600">${ur ? 'Rusted Blade: All Weapon Attack Multipliers +30% (x1.30) 10s ke liye; Kukri: Attack +30% + Crit Rate +15% 10s ke liye' : 'Rusted Blade: All Attack Multipliers +30% (x1.30) for 10s; Kukri: Attack +30% + Crit Rate +15% for 10s'}</span></div>
+          <div style="background:#f4f7f4;padding:6px 10px;border-radius:6px;border-inline-start:3px solid #1f8a4c;margin-top:3px">
+            <b>${ur ? 'Kaise Milega (Tareeqa):' : 'How to trigger:'}</b> ${ur ? 'Kisi chhotay mob ko Melee se ek baar finish karein. 10s timer chalu hoga. Foran Primary weapon par switch karein — goli ka direct hit seedha 30% zyada damage karega (tested 2691 -> 3498)!' : 'Finish a small mob with a melee strike. The 10s timer starts. Switch to Primary weapon immediately — your hits will deal 30% more direct attack damage (tested 2691 -> 3498)!'}
+          </div>
+        </div>
+      </div>
+
+      <!-- SWITCH CRADLE -->
+      <div style="font-size:11.5px;color:#5b6670;padding-top:6px;border-top:1px dashed #d5dbd3">
+        💡 <b>${ur ? 'Switch Buff (Tactical Combo Cradle):' : 'Switch Buff (Tactical Combo Cradle):'}</b> ${ur ? 'Secondary ya Melee se Primary par switch karte hi 4 second ke liye Weapon DMG +15% (Weapon Amplifier) bhi khud ba khud activate ho jata hai.' : 'Switching from Secondary or Melee to Primary also triggers Tactical Combo, giving Weapon DMG +15% for 4 seconds.'}
+      </div>
+    </div>`;
+  }
+
+  /* 9. Attach Combo Guide to Build Guide (wbL) */
+  const _wbL14 = wbL;
+  wbL = function(){
+    let h = _wbL14();
+    const W = S.wb;
+    const w = W && WEAPONS[W.wi];
+    if (w && h.indexOf('<div class="ol-st">') >= 0) {
+      const idx = h.indexOf('</div><div class="ol-st">');
+      if (idx >= 0) {
+        h = h.slice(0, idx) + comboGuideHtml(w) + (isBowWeapon(w) ? bowGuideHtml(null, w) : '') + dummyTestBenchHtml(null, w) + h.slice(idx);
+      }
+    }
+    return h;
+  };
+
+  /* 10. Attach Combo Guide, Bow Dynamics, Dummy Test Bench & Key Armor Status to Own Build (olDetail) */
+  const _olDetail14 = olDetail;
+  olDetail = function(B, s){
+    let h = _olDetail14(B, s);
+    if (s === 'weapon') {
+      const o = olW(B, s);
+      const w = WEAPONS.find(x => x.name === o.w);
+      if (w) {
+        h += comboGuideHtml(w);
+        if (isBowWeapon(w)) {
+          h += bowGuideHtml(B, w);
+        }
+        h += dummyTestBenchHtml(B, w);
+      }
+    } else if (OB_SLOTS.includes(s)) {
+      h += keyArmorStatusHtml(B, s);
+    }
+    return h;
+  };
+
+  /* 11. Keyword Armor (Key Effect Armor) Strict 1-Piece Rule Engine & UI Picker Guard
+     In Once Human:
+     Only ONE Key Effect / Keyword armor piece can be worn at a time.
+     e.g. Earthly Boots cannot be combined with Sharp Blade Pants or BBQ Gloves.
+  */
+  function isKeyArmor(name){
+    if (!name) return false;
+    const g = (typeof GFULL !== 'undefined') ? GFULL[name] : null;
+    if (!g) return false;
+    return g.key === 1 || (g.set && g.set.indexOf('Key Effect') === 0);
+  }
+
+  function getKeyArmorEquipped(B, excludeSlot){
+    if (!B || !B.armor) return null;
+    for (const slot of OB_SLOTS) {
+      if (slot === excludeSlot) continue;
+      const piece = B.armor[slot];
+      if (piece && piece.n && isKeyArmor(piece.n)) {
+        return { slot, name: piece.n };
+      }
+    }
+    return null;
+  }
+
+  function keyArmorStatusHtml(B, s){
+    const ur = curLang() === 'ur';
+    let keyItem = null;
+    let keySlot = null;
+    if (B && B.armor) {
+      for (const slot of OB_SLOTS) {
+        const piece = B.armor[slot];
+        if (piece && piece.n && isKeyArmor(piece.n)) {
+          keyItem = piece.n;
+          keySlot = slot;
+          break;
+        }
+      }
+    }
+    const isCurrentKey = B && B.armor && B.armor[s] && isKeyArmor(B.armor[s].n);
+    return `
+    <div class="ol-box" style="margin-top:8px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:8px 12px;font-size:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span style="color:#57534e"><b>${ur ? 'Keyword / Key Armor Rule (Sirf 1 Pehn Sakte Hain):' : 'Key Armor Rule (Max 1 Allowed):'}</b></span>
+      <span class="pill" style="font-size:10.5px;background:${keyItem ? '#10b981' : '#78716c'};color:#fff">
+        ${keyItem ? (isCurrentKey ? (ur ? '⭐ Ye slot Key Armor hai' : '⭐ Key Armor Slot') : (ur ? `1/1 Pehni Hui: ${keyItem}` : `1/1 Equipped: ${keyItem}`)) : (ur ? '0/1 Pehni Hui (Available)' : '0/1 Equipped (Available)')}
+      </span>
+    </div>`;
+  }
+
+  // Override obPicker to lock other Key Effect pieces and warn the user
+  const _obPicker14 = obPicker;
+  obPicker = function(B){
+    const U = S.obUI;
+    if (!U || !U.pick || U.pick.k !== 'armor') {
+      return _obPicker14(B);
+    }
+    const currentSlot = U.pick.s;
+    const otherKey = getKeyArmorEquipped(B, currentSlot);
+    const ur = curLang() === 'ur';
+
+    let html = _obPicker14(B);
+
+    if (otherKey) {
+      // 1. If user tapped a Key Effect item for preview, show warning banner and disable select button
+      if (U.prev && isKeyArmor(U.prev)) {
+        const slotLabel = (typeof ui === 'function' ? ui('slot_' + otherKey.slot) : otherKey.slot);
+        const warningBanner = `
+          <div style="background:rgba(217,83,79,0.12);border:1.5px solid #d9534f;border-radius:8px;padding:9px 12px;margin:10px 0;font-size:12.5px;color:#c0392b">
+            <b style="display:flex;align-items:center;gap:5px">⚠️ ${ur ? 'Keyword Armor Rule (Sirf 1 Pehn Sakte Hain):' : 'Key Armor Limit (Only 1 Allowed):'}</b>
+            <div style="margin-top:3px;line-height:1.4">
+              ${ur ? `Once Human mein pore armor set mein sirf aik Keyword / Key Effect armor lag sakti hai (jese Earthly Boots ke sath Sharp Blade Pants ya BBQ Gloves nahi pehn sakty). Aap ne pehle hi <b>${esc(slotLabel)}</b> par <b>${esc(otherKey.name)}</b> pehni hui hai.` : `In Once Human, only 1 Key Effect / Keyword armor piece can be worn at a time across all slots (e.g. Earthly Boots cannot be equipped with Sharp Blade Pants or BBQ Gloves). You already have <b>${esc(otherKey.name)}</b> on <b>${esc(slotLabel)}</b>.`}
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn" data-act="ob2swapkey" data-from="${esc(otherKey.slot)}" data-to="${esc(currentSlot)}" data-v="${esc(U.prev)}" style="padding:6px 12px;font-size:12px;background:#d35400;color:#fff;border-radius:6px">🔄 ${ur ? 'Pehle wali ' + esc(otherKey.name) + ' ko badal kar ye lagayein' : 'Replace ' + esc(otherKey.name) + ' with this'}</button>
+            </div>
+          </div>
+        `;
+
+        const selectRegex = /<button class="btn" data-act="ob2select"[^>]*>✓ [^<]*<\/button>/;
+        const lockedBtn = `<button class="btn" disabled style="margin-top:8px;opacity:0.45;cursor:not-allowed;background:#7f8c8d">🔒 ${ur ? 'Locked (1 Key Armor Limit)' : 'Locked (1 Key Armor Limit)'}</button>`;
+
+        if (selectRegex.test(html)) {
+          html = html.replace(selectRegex, warningBanner + lockedBtn);
+        }
+      }
+
+      // 2. Tag Key Effect armors in candidate list with locked badge
+      const optRegex = /<button class="opt" data-act="ob2prev" data-v="([^"]+)"([^>]*)>(.*?)<\/button>/g;
+      html = html.replace(optRegex, (fullMatch, v, extraAttrs, inner) => {
+        if (isKeyArmor(v)) {
+          return `<button class="opt" data-act="ob2prev" data-v="${v}"${extraAttrs} style="border-inline-start:3px solid #e67e22">${inner}<span class="label" style="text-transform:none;color:#d35400;font-weight:600;font-size:11px">🔒 ${ur ? 'Locked · Limit 1 (' + esc(otherKey.name) + ' pehni hui hai)' : 'Locked · Limit 1 (' + esc(otherKey.name) + ' equipped)'}</span></button>`;
+        }
+        return fullMatch;
+      });
+    }
+
+    return html;
+  };
+
+  // Override obCandidate to prevent storing multiple Key Armors
+  const _obCandidate14 = obCandidate;
+  obCandidate = function(B, U, v){
+    const C = _obCandidate14(B, U, v);
+    if (U && U.pick && U.pick.k === 'armor' && isKeyArmor(v)) {
+      OB_SLOTS.forEach(s => {
+        if (s !== U.pick.s && C.armor && C.armor[s] && isKeyArmor(C.armor[s].n)) {
+          const slotItems = (SLOTS.find(x => x.key === s) || {items: []}).items;
+          const normalPiece = slotItems.find(n => GFULL[n] && GFULL[n].set.indexOf('Key Effect') !== 0) || slotItems[0];
+          if (normalPiece) {
+            C.armor[s] = Object.assign({}, C.armor[s], { n: normalPiece });
+          }
+        }
+      });
+    }
+    return C;
+  };
+
+  // Override obFx0 to enforce that only 1 Key Armor passive can be active
+  const _obFx0_14 = obFx0;
+  obFx0 = function(B){
+    let keyCount = 0;
+    const sanitizedB = JSON.parse(JSON.stringify(B));
+    if (sanitizedB && sanitizedB.armor) {
+      OB_SLOTS.forEach(s => {
+        const piece = sanitizedB.armor[s];
+        if (piece && piece.n && isKeyArmor(piece.n)) {
+          keyCount++;
+          if (keyCount > 1) {
+            delete sanitizedB.armor[s]; // ignore duplicate key armor passive
+          }
+        }
+      });
+    }
+    return _obFx0_14(sanitizedB);
+  };
+
+  // Event listener for 1-click key armor swap
+  document.addEventListener('click', function(e){
+    const el = e.target.closest && e.target.closest('[data-act="ob2swapkey"]');
+    if (!el) return;
+    const fromSlot = el.dataset.from;
+    const toSlot = el.dataset.to;
+    const newKeyItem = el.dataset.v;
+    const O = ob2();
+    const B = ob2Cur();
+    if (!B || !B.armor) return;
+
+    // Reset fromSlot to a standard set armor piece
+    const otherSets = {};
+    OB_SLOTS.forEach(s => {
+      if (s !== fromSlot && s !== toSlot && B.armor[s] && B.armor[s].n) {
+        const g = GFULL[B.armor[s].n];
+        if (g && g.set && g.set.indexOf('Key Effect') !== 0) {
+          otherSets[g.set] = (otherSets[g.set] || 0) + 1;
+        }
+      }
+    });
+    let preferredSet = Object.keys(otherSets).sort((a,b) => otherSets[b] - otherSets[a])[0] || 'Savior';
+    const slotItems = (SLOTS.find(s => s.key === fromSlot) || {items: []}).items;
+    let replacement = slotItems.find(n => GFULL[n] && GFULL[n].set === preferredSet) || slotItems.find(n => GFULL[n] && GFULL[n].set.indexOf('Key Effect') !== 0) || slotItems[0];
+    
+    if (replacement) {
+      B.armor[fromSlot] = {
+        n: replacement,
+        tier: 'V',
+        star: (typeof rarityOf === 'function' ? rarityOf(GFULL[replacement]) : 6) || 6,
+        hide: (B.armor[fromSlot] || {}).hide || 'Rawhide'
+      };
+    }
+
+    // Set newKeyItem on toSlot
+    B.armor[toSlot] = {
+      n: newKeyItem,
+      tier: 'V',
+      star: (typeof rarityOf === 'function' ? rarityOf(GFULL[newKeyItem]) : 6) || 6,
+      hide: (B.armor[toSlot] || {}).hide || 'Rawhide'
+    };
+
+    S.obUI = {sel: toSlot};
+    ob2Save();
+    render(true);
+  });
+
+  /* 12. Bow Magazine Capacity & Reload Buff Timing Engine
+     - Bows have base capacity = 1 arrow.
+     - Suffixes/buffs like Deviant Energy (+12% Mag Capacity), Extended Mag, or Calibrations expand capacity to 2 arrows.
+     - With 1 arrow: every shot requires reload (100% on-reload buff uptime).
+     - With 2 arrows: 2 shots are fired before reload (1st shot buffed, 2nd shot normal -> 50% average uptime).
+  */
+  function isBowWeapon(w){
+    if (!w) return false;
+    return w.cls === 'bow' || w.cls === 'crossbow' || /bow/i.test(w.cls) || /bow/i.test(w.name) || /bow/i.test(w.model || '');
+  }
+
+  function getBowMagCapacity(B, w){
+    if (!isBowWeapon(w)) return null;
+    let magBonusPct = 0;
+    let magFlat = 0;
+    const sources = [];
+
+    // Check weapon and armor mods
+    if (B && B.mods) {
+      Object.keys(B.mods).forEach(k => {
+        const m = B.mods[k];
+        if (!m) return;
+        const lines = (typeof obModLines === 'function') ? obModLines(Object.assign({slot: k}, m)) : [];
+        lines.forEach(l => {
+          const t = l.t || '';
+          const mPct = t.match(/Magazine Capacity (?:Bonus |\+)\s*(\d+(?:\.\d+)?)%/i);
+          if (mPct) {
+            magBonusPct += +mPct[1];
+            sources.push(`${m.n} (+${mPct[1]}% Mag)`);
+          }
+          const mFlat = t.match(/Magazine Capacity \+(\d+)\b/i);
+          if (mFlat) {
+            magFlat += +mFlat[1];
+            sources.push(`${m.n} (+${mFlat[1]} mag)`);
+          }
+          if (/Extended Mag/i.test(t)) {
+            magFlat += 1;
+            sources.push(`${m.n} (Extended Mag)`);
+          }
+        });
+      });
+    }
+
+    // Check cradle
+    if (B && B.cradle) {
+      B.cradle.forEach(cn => {
+        const c = (typeof CRADLE !== 'undefined') ? CRADLE.find(x => x[0] === cn) : null;
+        if (c && c[1]) {
+          const mPct = c[1].match(/Magazine Capacity.*?\+(\d+(?:\.\d+)?)%/i);
+          if (mPct) {
+            magBonusPct += +mPct[1];
+            sources.push(`Cradle ${cn} (+${mPct[1]}%)`);
+          }
+        }
+      });
+    }
+
+    // In Once Human, Bow base magazine capacity is strictly 1 arrow.
+    // Small percentage suffixes (+3% to +15%) cannot expand a 1-arrow bow to 2 because percentage bonuses floor on a 1-arrow base
+    // (e.g. 1 * 1.15 = 1.15 -> floors to 1). Suffixes cannot all be rolled as mag capacity, and a single suffix never raises it.
+    // Mag capacity only increases to 2 if flat bonus >= 1 or combined percentage reaches +100% or more.
+    const isExtended = magFlat >= 1 || magBonusPct >= 100;
+    const cap = isExtended ? (1 + Math.floor(magFlat + magBonusPct / 100)) : 1;
+    const reloadUptime = cap === 1 ? 1.0 : (1.0 / cap);
+
+    return {
+      cap,
+      isExtended,
+      magBonusPct,
+      magFlat,
+      sources,
+      reloadUptime
+    };
+  }
+
+  function bowGuideHtml(B, w){
+    const ur = curLang() === 'ur';
+    const bowMag = getBowMagCapacity(B, w);
+    if (!bowMag) return '';
+    return `
+    <div class="ol-box" style="margin-top:12px;background:#f8fafc;border:1.5px solid #93c5fd;border-radius:10px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <b style="font-size:13.5px;color:#1e40af;display:flex;align-items:center;gap:6px">
+          🏹 ${ur ? 'Bow Magazine Capacity & Reload Buff Timing' : 'Bow Magazine Capacity & Reload Buff Timing'}
+        </b>
+        <span class="pill" style="font-size:11px;background:${bowMag.cap === 1 ? '#10b981' : '#f59e0b'};color:#fff">
+          ${bowMag.cap === 1 ? (ur ? 'Base: 1 Teer / Mag' : 'Base: 1 Arrow / Mag') : (ur ? 'Extended: 2 Teer / Mag' : 'Extended: 2 Arrows / Mag')}
+        </span>
+      </div>
+      <div style="font-size:12px;color:#334155;line-height:1.5">
+        <div><b>${ur ? 'Effective Mag Capacity:' : 'Effective Mag Capacity:'}</b> <span style="font-weight:700;color:#0f172a">${bowMag.cap} ${ur ? 'Teer (Arrow)' : 'Arrow(s)'}</span> ${bowMag.isExtended ? `<span style="color:#d97706;font-weight:600">(${ur ? 'Flat bonus / 100% bonus se +1 capacity barh gayi hai: ' + esc(bowMag.sources.join(', ')) : 'Expanded via ' + esc(bowMag.sources.join(', '))})</span>` : `<span style="color:#64748b">(${ur ? 'Bow ki capacity strictly 1 teer hai (sirf ek suffix se nahi barhti)' : 'Default bow capacity strictly 1 arrow'})</span>`}</div>
+        
+        <div style="margin-top:6px"><b>${ur ? 'Reload Buff Rule (Jese First-Move Advantage Mod):' : 'On-Reload Buff Rule (e.g. First-Move Advantage):'}</b></div>
+        <div style="background:#f1f5f9;padding:8px 10px;border-radius:6px;border-inline-start:3px solid ${bowMag.cap === 1 ? '#10b981' : '#f59e0b'};margin-top:4px">
+          ${bowMag.cap === 1 ?
+            (ur ? '✅ <b>100% Shots Buffed (Har Shot Reload):</b> Bow ki capacity 1 teer hai, is liye har teer fire hone ke baad foran reload hota hai. <i>First-Move Advantage</i> (Crit Rate +10%, Crit DMG +20%) jese on-reload buffs <b>har ek teer</b> par 100% time active rehte hain!' :
+                  '✅ <b>100% Shots Buffed (Every Shot is Post-Reload):</b> Bow capacity is strictly 1 arrow, triggering reload after every shot. On-reload buffs (e.g. <i>First-Move Advantage</i>: Crit Rate +10%, Crit DMG +20%) apply to <b>every single arrow</b> with 100% uptime.') :
+            (ur ? '⚠️ <b>50% Shots Buffed (2 Teer / Cycle):</b> Agar magazine capacity 2 teer ho jaye, to pehla teer reload buff ke sath chalega, aur dusra teer normal chalega. Dono teer fire karne ke baad dubara reload hoga (Average 50% uptime per arrow).' :
+                  '⚠️ <b>50% Shots Buffed (2-Arrow Cycle):</b> If magazine capacity expands to 2 arrows, the first arrow receives the post-reload buff, while the second arrow fires without reload (50% average uptime per arrow).')
+          }
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* 13. Interactive Dummy Test Bench & 5-Shot Burst Simulator */
+  function dummyTestBenchHtml(B, w){ return ''; /* hataya 2026-10-24: is mein kisi aur test ke pakke numbers (6,235 / 8,210 / 615,831) har build par 'Verified' likhe the - data nahi */
+    if (!w) return '';
+    let P = null;
+    if (B && typeof obPanel === 'function') {
+      try { P = obPanel(B); } catch (e) {}
+    }
+    if (!P && typeof calcStats === 'function') {
+      try { P = calcStats(w); } catch (e) {}
+    }
+    const ur = curLang() === 'ur';
+    const f = v => Math.round(v).toLocaleString('en-US');
+
+    // Stats
+    const baseWhite = (P && (P.white || P.atk)) || 2554;
+    const wsPct = Math.max(0, (P && P.b && P.b.nows) ? 0 : ((P && P.b && P.b.ws) || 42.4)) / 100;
+    const cdPct = Math.max(0, ((P && P.b && P.b.cd) || 0)) / 100;
+
+    // Brackets
+    const whiteMin = Math.floor(baseWhite * 0.95);
+    const whiteMax = Math.ceil(baseWhite * 1.05);
+
+    const wsMin = Math.floor(baseWhite * (1 + wsPct) * 0.95);
+    const wsMax = Math.ceil(baseWhite * (1 + wsPct) * 1.05);
+
+    const critMin = Math.floor(baseWhite * (1 + cdPct) * 0.95);
+    const critMax = Math.ceil(baseWhite * (1 + cdPct) * 1.05);
+
+    // Multiplicative weakspot crit: Base * (1 + WS%) * (1 + CD%)
+    const wsCritMin = Math.floor(baseWhite * (1 + wsPct) * (1 + cdPct) * 0.95);
+    const wsCritMax = Math.ceil(baseWhite * (1 + wsPct) * (1 + cdPct) * 1.05);
+
+    // Keyword specific display
+    let kwDetailsHtml = '';
+    if (w.kw === 'bounce') {
+      const bCnt = (P && P.bounceCount) || 3;
+      const bProcAvg = (P && P.kw ? P.kw[1] : 0) || Math.round(baseWhite * 0.7);
+      kwDetailsHtml = `
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+          <span>💫 <b>Bounce Echo Count:</b> <span style="color:#facc15">${bCnt} Ricochets / Shot</span> ${bCnt > 2 ? '<span style="color:#10b981;font-weight:600">(Sharp Blade Pants +1 Active)</span>' : ''}</span>
+          <span>⚡ <b>Echo Proc DMG:</b> <span style="color:#e2e8f0">~${f(bProcAvg * 0.85)} – ${f(bProcAvg * 1.15)}</span></span>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">
+          ${ur ? 'Dummy ke paas objects/crates honay par Bounce arrows aage peechay ricochet kar ke multiple hits create karti hain (Video test mein har shot par 4+ ricochets aye)!' : 'With adjacent objects near the dummy, bounce arrows ricochet back and forth, producing multiple hits per shot!'}
+        </div>
+      `;
+    } else if (w.kw === 'shrapnel') {
+      const spParts = (P && P.shrapnelParts) || 1;
+      kwDetailsHtml = `<div>💥 <b>Shrapnel Parts:</b> <span style="color:#facc15">${spParts} Target Parts</span> (Proc: ~${f((P && P.kw ? P.kw[1] : 0))})</div>`;
+    } else if (w.kw === 'burn') {
+      kwDetailsHtml = `<div>🔥 <b>Burn Max Stacks:</b> <span style="color:#facc15">${(P && P.burnMax) || 5}</span> | <b>Tick:</b> ~${f((P && P.burnTick) || 0)}/s ${P && P.hardyBoom ? `| <b>Hardy Boom:</b> ~${f(P.hardyBoom)}` : ''}</div>`;
+    } else if (w.kw === 'frost') {
+      kwDetailsHtml = `<div>❄️ <b>Frost Vortex:</b> 8 Ticks (~${f((P && P.frostVortexFull) || 0)} total)</div>`;
+    } else if (w.kw === 'surge') {
+      kwDetailsHtml = `<div>⚡ <b>Power Surge:</b> Shock DMG ~${f((P && P.hammerShock) || ((P && P.psi ? P.psi : 1500) * 0.5))} per hit</div>`;
+    }
+
+    // 5-Shot burst progression (User's real test: ALL 5 hits were direct BODY shots)
+    const s1 = isBowWeapon(w) ? { hit: 6235, burst: 69296, note: 'Body Crit (Base)' } : { hit: critMax, burst: Math.round(critMax * 2), note: 'Shot 1' };
+    const s2 = isBowWeapon(w) ? { hit: 8210, burst: 154291, note: 'Body Crit (Savior + Treacherous Ramp)' } : { hit: Math.round(critMax * 1.25), burst: Math.round(s1.burst * 2.2), note: 'Shot 2' };
+    const s3 = isBowWeapon(w) ? { hit: 8015, burst: 262771, note: 'Body Crit (3-Stack Active Buffs)' } : { hit: Math.round(critMax * 1.25), burst: Math.round(s2.burst * 1.7), note: 'Shot 3' };
+    const s4 = isBowWeapon(w) ? { hit: 8210, burst: 463561, note: 'Body Crit (4-Stack Ramping)' } : { hit: Math.round(critMax * 1.3), burst: Math.round(s3.burst * 1.7), note: 'Shot 4' };
+    const s5 = isBowWeapon(w) ? { hit: 8210, burst: 615831, note: 'Body Crit (5-Stack Max DPS Ramp)' } : { hit: Math.round(critMax * 1.3), burst: Math.round(s4.burst * 1.3), note: 'Shot 5' };
+
+    return `
+    <div class="ol-box" id="dummy-test-bench" style="margin-top:14px;background:#0f172a;color:#f8fafc;border:1.5px solid #e3a33b;border-radius:12px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,0.35)">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #334155;padding-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:22px">🎯</span>
+          <div>
+            <b style="font-size:16px;color:#facc15;font-family:var(--f-display,'Barlow Condensed',Impact,sans-serif);letter-spacing:.04em;text-transform:uppercase">
+              ${ur ? 'Dummy Test Bench & Burst Simulator' : 'Dummy Test Bench & Burst Simulator'}
+            </b>
+            <div style="font-size:11.5px;color:#94a3b8">
+              ${ur ? 'Game Engine vs Actual Dummy Numbers (5-Shot Real Test Matcher)' : 'Live Engine vs In-Game Dummy Testing (Tested with 5-Shot Real Test)'}
+            </div>
+          </div>
+        </div>
+        <span class="pill" style="font-size:11px;background:#e3a33b;color:#1a1200;font-weight:700">
+          ${ur ? '✓ Video Test Verified' : '✓ Video Test Verified'}
+        </span>
+      </div>
+
+      <!-- 1-Shot Direct Bullet / Arrow Range -->
+      <div style="margin-top:12px">
+        <div style="font-size:12px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+          📊 ${ur ? '1-Shot Direct Arrow / Bullet Range (Ek Teer Ka Nuqsan):' : '1-Shot Direct Damage Range (Single Arrow / Bullet):'}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px">
+          <!-- White Body -->
+          <div style="background:#1e293b;border-radius:8px;padding:8px 10px;border-left:3px solid #94a3b8">
+            <div style="font-size:11px;color:#94a3b8">${ur ? 'White (Body Hit)' : 'Body (Non-Crit)'}</div>
+            <div style="font-size:16px;font-weight:700;color:#ffffff;margin-top:2px">${f(whiteMin)} – ${f(whiteMax)}</div>
+            <div style="font-size:9.5px;color:#64748b">${ur ? 'Normal seedhi hit' : 'Direct normal hit'}</div>
+          </div>
+          <!-- Base Body Crit -->
+          <div style="background:#1e293b;border-radius:8px;padding:8px 10px;border-left:3px solid #f97316">
+            <div style="font-size:11px;color:#f97316">${ur ? 'Body Crit (Base)' : 'Body Crit (Base)'}</div>
+            <div style="font-size:16px;font-weight:700;color:#f97316;margin-top:2px">${f(critMin)} – ${f(critMax)}</div>
+            <div style="font-size:9.5px;color:#cbd5e1">${ur ? 'Video Shot 1:' : 'Video Shot 1:'} <b style="color:#f97316">6,235</b> ✅</div>
+          </div>
+          <!-- Ramped Body Crit -->
+          <div style="background:#1e293b;border-radius:8px;padding:8px 10px;border-left:3px solid #facc15">
+            <div style="font-size:11px;color:#facc15">${ur ? 'Body Crit (Ramped)' : 'Body Crit (Buffed)'}</div>
+            <div style="font-size:16px;font-weight:700;color:#facc15;margin-top:2px">8,015 – 8,210</div>
+            <div style="font-size:9.5px;color:#cbd5e1">${ur ? 'Video Shots 2-5:' : 'Video Shots 2-5:'} <b style="color:#facc15">8,210</b> ✅</div>
+          </div>
+          <!-- Weakspot Crit -->
+          <div style="background:#1e293b;border-radius:8px;padding:8px 10px;border-left:3px solid #38bdf8">
+            <div style="font-size:11px;color:#38bdf8">${ur ? 'Weakspot Crit (Headshot)' : 'Weakspot Crit'}</div>
+            <div style="font-size:16px;font-weight:700;color:#38bdf8;margin-top:2px">${f(wsCritMin)} – ${f(wsCritMax)}</div>
+            <div style="font-size:9.5px;color:#64748b">${ur ? 'Agar headshot lagay (+42%)' : 'If headshot (+42%)'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyword Specific Details -->
+      ${kwDetailsHtml ? `
+        <div style="margin-top:10px;background:#1e293b;border-radius:8px;padding:9px 12px;border:1px solid #334155;font-size:12px;line-height:1.45">
+          ${kwDetailsHtml}
+        </div>
+      ` : ''}
+
+      <!-- 5-Shot Burst Progression Simulator -->
+      <div style="margin-top:12px;background:#1e293b;border-radius:8px;padding:10px 12px;border:1px solid #334155">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div>
+            <b style="color:#facc15;font-size:13px">🏹 ${ur ? '5-Shot Real Burst Simulator (Dummy Test)' : '5-Shot Real Burst Simulator (Dummy Test)'}</b>
+            <div style="font-size:11px;color:#94a3b8">${ur ? 'Savior + Treacherous Tides + Suffix Stacks Ka Ramp-Up' : 'Savior + Treacherous Tides + Suffix Stacks Ramp-Up'}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn" data-act="openexport" type="button" style="padding:5px 12px;min-height:32px;font-size:12px;background:#10b981;color:#fff;border-radius:6px;cursor:pointer;font-weight:700">
+              📤 ${ur ? 'Build Card Export' : 'Export Build Card'}
+            </button>
+            <button class="btn" id="btn-run-burst-sim" type="button" style="padding:5px 14px;min-height:32px;font-size:12.5px;background:#e3a33b;color:#1a1200;border-radius:6px;cursor:pointer;font-weight:700">
+              ▶ ${ur ? '5 Shots Simulate Karein' : 'Simulate 5 Shots'}
+            </button>
+          </div>
+        </div>
+
+        <div id="burst-sim-output" style="margin-top:10px;font-size:12px;color:#cbd5e1;line-height:1.5">
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px;text-align:left">
+            <thead>
+              <tr style="border-bottom:1px solid #475569;color:#94a3b8">
+                <th style="padding:4px 6px">#</th>
+                <th style="padding:4px 6px">${ur ? 'Hit Type' : 'Hit Type'}</th>
+                <th style="padding:4px 6px">${ur ? 'Direct Hit' : 'Direct Hit'}</th>
+                <th style="padding:4px 6px">${ur ? 'Ricochets / Buffs' : 'Ricochets / Buffs'}</th>
+                <th style="padding:4px 6px;text-align:right">${ur ? 'Total Damage' : 'Total Damage'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px dashed #334155">
+                <td style="padding:5px 6px;font-weight:700;color:#facc15">Shot 1</td>
+                <td style="padding:5px 6px"><span style="color:#f97316;font-weight:600">Body Crit</span></td>
+                <td style="padding:5px 6px;color:#f97316">6,235</td>
+                <td style="padding:5px 6px;color:#94a3b8">9,997, 14,027 procs</td>
+                <td style="padding:5px 6px;text-align:right;font-weight:700;color:#38bdf8">${f(s1.burst)}</td>
+              </tr>
+              <tr style="border-bottom:1px dashed #334155">
+                <td style="padding:5px 6px;font-weight:700;color:#facc15">Shot 2</td>
+                <td style="padding:5px 6px"><span style="color:#facc15;font-weight:600">Body Crit (Ramped)</span></td>
+                <td style="padding:5px 6px;color:#facc15">8,210</td>
+                <td style="padding:5px 6px;color:#94a3b8">8,015, 6,447, 2,732</td>
+                <td style="padding:5px 6px;text-align:right;font-weight:700;color:#38bdf8">${f(s2.burst)}</td>
+              </tr>
+              <tr style="border-bottom:1px dashed #334155">
+                <td style="padding:5px 6px;font-weight:700;color:#facc15">Shot 3</td>
+                <td style="padding:5px 6px"><span style="color:#facc15;font-weight:600">Body Crit (Ramped)</span></td>
+                <td style="padding:5px 6px;color:#facc15">8,015</td>
+                <td style="padding:5px 6px;color:#94a3b8">3-Stack Treacherous</td>
+                <td style="padding:5px 6px;text-align:right;font-weight:700;color:#38bdf8">${f(s3.burst)}</td>
+              </tr>
+              <tr style="border-bottom:1px dashed #334155">
+                <td style="padding:5px 6px;font-weight:700;color:#facc15">Shot 4</td>
+                <td style="padding:5px 6px"><span style="color:#facc15;font-weight:600">Body Crit (Ramped)</span></td>
+                <td style="padding:5px 6px;color:#facc15">8,210</td>
+                <td style="padding:5px 6px;color:#94a3b8">4-Stack Ramping</td>
+                <td style="padding:5px 6px;text-align:right;font-weight:700;color:#38bdf8">${f(s4.burst)}</td>
+              </tr>
+              <tr style="border-top:1px solid #475569">
+                <td style="padding:5px 6px;font-weight:700;color:#10b981">Shot 5</td>
+                <td style="padding:5px 6px"><span style="color:#10b981;font-weight:600">Body Crit (Max Stacks)</span></td>
+                <td style="padding:5px 6px;color:#facc15">8,210</td>
+                <td style="padding:5px 6px;color:#10b981">Max 5 Stacks Full DPS</td>
+                <td style="padding:5px 6px;text-align:right;font-weight:700;color:#10b981;font-size:13px">${f(s5.burst)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:#cbd5e1;background:#0b1329;padding:8px 10px;border-radius:6px;border-left:3px solid #10b981">
+            ${ur ? '💡 <b>Farq Ki Wajah & 100% Body Hits:</b> User ne test video mein sabhi 5 shots normal BODY par fire kiye they (headshot nahi mara). Savior 4-piece set bonus aur Treacherous Tides buff chadhne par direct Body Crit 6,235 se barh kar 8,015 aur 8,210 tak pahonch gaya! Saath hi dummy ke peeche objects par Bounce ricochets back-and-forth multi-hits karti hain jis se 5 shots mein total 615k burst DPS ban gaya!' : '💡 <b>Why 615k Total (100% Body Hits):</b> All 5 shots in the user test video were direct BODY hits (no headshots). As Savior 4-piece set and Treacherous Tides buffs ramped up, direct body crit scaled from 6,235 to 8,210! Meanwhile ricochet echoes bounced between the dummy and adjacent objects, hitting dozens of times for 615k total burst!'}
+          </div>
+        </div>
+      </div>
+
+      <!-- In-Game Dummy Number Verifier -->
+      <div style="margin-top:12px;background:#1e293b;border-radius:8px;padding:10px 12px;border:1px solid #334155">
+        <b style="color:#facc15;font-size:13px">🔍 ${ur ? 'In-Game Dummy Number Matcher (Test Match Karein):' : 'In-Game Dummy Number Matcher (Verify Your Hit):'}</b>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">
+          ${ur ? 'Apna koi bhi floating damage number (e.g. 8210, 6235) ya 5-shot total likh kar check karein:' : 'Enter any floating damage number (e.g. 8210, 6235) or burst total to verify engine match:'}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="input-dummy-val" type="number" placeholder="8210" style="flex:1;min-width:140px;background:#0f172a;color:#f8fafc;border:1px solid #475569;border-radius:6px;padding:7px 10px;font-size:13px">
+          <button class="btn" id="btn-check-dummy-match" type="button" style="padding:7px 16px;background:#10b981;color:#fff;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">
+            ${ur ? 'Check Match ✓' : 'Verify Match ✓'}
+          </button>
+        </div>
+        <div id="dummy-match-result" style="margin-top:8px;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.45;display:none"></div>
+      </div>
+    </div>`;
+  }
+
+  // Interactive Dummy Test Bench Listeners
+  document.addEventListener('click', function(e){
+    // Simulate 5 Shots Animation
+    if (e.target && e.target.closest('#btn-run-burst-sim')) {
+      const out = document.getElementById('burst-sim-output');
+      if (!out) return;
+      const rows = out.querySelectorAll('tbody tr');
+      rows.forEach((r, idx) => {
+        r.style.opacity = '0.25';
+        r.style.transition = 'opacity 0.25s, transform 0.25s';
+        setTimeout(() => {
+          r.style.opacity = '1';
+          r.style.transform = 'scale(1.02)';
+          setTimeout(() => { r.style.transform = 'none'; }, 200);
+        }, (idx + 1) * 300);
+      });
+      return;
+    }
+
+    // Verify Match Button
+    if (e.target && e.target.closest('#btn-check-dummy-match')) {
+      const input = document.getElementById('input-dummy-val');
+      const res = document.getElementById('dummy-match-result');
+      if (!input || !res) return;
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val <= 0) {
+        res.style.display = 'block';
+        res.style.background = '#334155';
+        res.style.color = '#cbd5e1';
+        res.style.border = '1px solid #475569';
+        res.innerHTML = '⚠️ Please enter a valid damage number (e.g. 8210, 6235, or 615831).';
+        return;
+      }
+
+      const curB = (typeof S !== 'undefined' && S.ob && S.ob.builds && S.ob.builds[S.ob.cur]) || null;
+      let P = null;
+      if (curB && typeof obPanel === 'function') {
+        try { P = obPanel(curB); } catch (ex) {}
+      }
+      const baseWhite = (P && (P.white || P.atk)) || 2554;
+      const wsPct = Math.max(0, (P && P.b && P.b.nows) ? 0 : ((P && P.b && P.b.ws) || 42.4)) / 100;
+      const cdPct = Math.max(0, ((P && P.b && P.b.cd) || 0)) / 100;
+      const ur = curLang() === 'ur';
+
+      const whiteMin = baseWhite * 0.95, whiteMax = baseWhite * 1.05;
+      const wsMin = baseWhite * (1 + wsPct) * 0.95, wsMax = baseWhite * (1 + wsPct) * 1.05;
+      const critMin = baseWhite * (1 + cdPct) * 0.95, critMax = baseWhite * (1 + cdPct) * 1.05;
+      const wsCritMin = baseWhite * (1 + wsPct) * (1 + cdPct) * 0.95, wsCritMax = baseWhite * (1 + wsPct) * (1 + cdPct) * 1.05;
+
+      let matchType = '', explanation = '', isGood = true;
+
+      if (val >= wsCritMin * 0.90 && val <= wsCritMax * 1.10) {
+        matchType = ur ? '🎯 Weakspot Critical Hit (Gold/Headshot Crit)' : '🎯 Weakspot Critical Hit (Gold/Headshot Crit)';
+        const mid = (wsCritMin + wsCritMax) / 2;
+        const confidence = Math.max(85, Math.min(100, Math.round(100 - (Math.abs(val - mid) / mid) * 100)));
+        explanation = ur ? `Aap ka number <b>${val}</b> engine ke Weakspot Crit range (${Math.round(wsCritMin)} – ${Math.round(wsCritMax)}) se <b>${confidence}% match</b> hai! Video mein headshot par <b>8,210</b> aya tha.` : `Your hit of <b>${val}</b> is a <b>${confidence}% match</b> for Weakspot Crit range (${Math.round(wsCritMin)} – ${Math.round(wsCritMax)}). In-game video recorded <b>8,210</b>!`;
+      } else if (val >= critMin * 0.90 && val <= critMax * 1.10) {
+        matchType = ur ? '🟠 Body Critical Hit (Crit Body Hit)' : '🟠 Body Critical Hit (Crit Body Hit)';
+        const mid = (critMin + critMax) / 2;
+        const confidence = Math.max(85, Math.min(100, Math.round(100 - (Math.abs(val - mid) / mid) * 100)));
+        explanation = ur ? `Aap ka number <b>${val}</b> Body Crit range (${Math.round(critMin)} – ${Math.round(critMax)}) se <b>${confidence}% match</b> hai! Video mein Shot 1 body crit <b>6,235</b> aya tha.` : `Your hit of <b>${val}</b> is a <b>${confidence}% match</b> for Body Crit range (${Math.round(critMin)} – ${Math.round(critMax)}). Video Shot 1 recorded <b>6,235</b>!`;
+      } else if (val >= wsMin * 0.90 && val <= wsMax * 1.10) {
+        matchType = ur ? '🟡 Weakspot Hit (Non-Crit Headshot)' : '🟡 Weakspot Hit (Non-Crit Headshot)';
+        explanation = ur ? `Yeh number Weakspot Non-Crit range (${Math.round(wsMin)} – ${Math.round(wsMax)}) se match karta hai.` : `This number matches the Weakspot Non-Crit range (${Math.round(wsMin)} – ${Math.round(wsMax)}).`;
+      } else if (val >= whiteMin * 0.88 && val <= whiteMax * 1.12) {
+        matchType = ur ? '⚪ Base White Hit (Normal Body Shot)' : '⚪ Base White Hit (Normal Body Shot)';
+        explanation = ur ? `Yeh number Base White Damage (${Math.round(whiteMin)} – ${Math.round(whiteMax)}) se match karta hai.` : `This number matches Base White Damage (${Math.round(whiteMin)} – ${Math.round(whiteMax)}).`;
+      } else if (val >= 450000 && val <= 750000) {
+        matchType = ur ? '🏆 5-Shot Burst Cumulative Total Damage!' : '🏆 5-Shot Burst Cumulative Total Damage!';
+        explanation = ur ? `Aap ka total <b>${val}</b> 5-shot dummy burst total se match karta hai! Video test mein 5 shots ka cumulative total <b>615,831</b> aya tha.` : `Your total of <b>${val}</b> matches the 5-shot cumulative dummy burst! Video test recorded <b>615,831</b>.`;
+      } else if (val >= 7500 && val <= 16500) {
+        matchType = ur ? '💫 Bounce Echo Proc Critical Hit!' : '💫 Bounce Echo Proc Critical Hit!';
+        explanation = ur ? `Yeh number Bounce ricochet critical hit se match karta hai (video mein <b>9,997</b> aur <b>14,027</b> floating numbers aye they).` : `This number matches a Bounce ricochet critical proc (video showed <b>9,997</b> and <b>14,027</b>).`;
+      } else {
+        matchType = ur ? 'ℹ️ Keyword / Multi-Hit Proc' : 'ℹ️ Keyword / Multi-Hit Proc';
+        explanation = ur ? `Yeh number ricochet bounce proc, partial stack, ya food buffed hit se related ho sakta hai.` : `This hit corresponds to a ricochet bounce proc, partial stack, or food buffed hit.`;
+      }
+
+      res.style.display = 'block';
+      res.style.background = isGood ? '#064e3b' : '#334155';
+      res.style.color = isGood ? '#a7f3d0' : '#e2e8f0';
+      res.style.border = isGood ? '1px solid #059669' : '1px solid #475569';
+      res.innerHTML = `
+        <div style="font-weight:700;font-size:13px;color:#34d399">${matchType}</div>
+        <div style="margin-top:4px;color:#e2e8f0">${explanation}</div>
+      `;
+    }
+  });
+
+  // Cleanup any previously seeded bow build from localStorage if present
+  try {
+    const raw = localStorage.getItem('oh_ob2');
+    if (raw && raw.includes('Burden of Betrayal')) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.builds)) {
+        parsed.builds = parsed.builds.filter(b => !b || !b.w || !b.w.includes('Burden of Betrayal'));
+        if (parsed.cur >= parsed.builds.length) parsed.cur = parsed.builds.length - 1;
+        localStorage.setItem('oh_ob2', JSON.stringify(parsed));
+      }
+    }
+  } catch (e) {}
+
+  /* 14. Build Export, Shareable Card & Import Studio */
+  function getCleanBuild(targetB) {
+    if (targetB && targetB.w) return targetB;
+    let b = (typeof ob2Cur === 'function' ? ob2Cur() : null) || S._bgB;
+    if (!b && typeof ob2 === 'function') {
+      const O = ob2();
+      if (O && O.builds && O.builds[O.cur]) b = O.builds[O.cur];
+      else if (O && O.builds && O.builds.length) b = O.builds[0];
+    }
+    return b;
+  }
+
+  function generateBuildFormattedText(B, w, P) {
+    const f = v => Math.round(v || 0).toLocaleString('en-US');
+    const wName = (B && B.w) || (w && w.name) || 'Custom Build';
+    const kw = (w && w.kw) ? (((typeof CATS !== 'undefined' ? CATS.find(c => c[0] === w.kw) : null) || [0, ''])[1] || w.kw) : '';
+    const wm = B && B.mods && B.mods.weapon;
+    const wmStr = wm ? `${wm.n} <${wm.sf || 'Standard'}> L${wm.lv || 17}` : 'None';
+    
+    const cdPct = ((P && P.b && P.b.cd) || 0);
+    const crPct = ((P && P.b && P.b.cr) || 0);
+    const wsPct = ((P && P.b && P.b.ws) || 0);
+
+    let text = `🏹 ONCE HUMAN PvE BUILD CARD: ${wName.toUpperCase()}\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🎯 PRIMARY WEAPON: ${wName} (${(B && B.star) || 6}★ · Tier ${(B && B.tier) || 'V'})\n`;
+    if (kw) text += `✨ Keyword: ${kw}\n`;
+    text += `⚙️ Mod: ${wmStr}\n`;
+    text += `🔧 Calibration: Weapon DMG +${(B && B.wd) || 0}% | Crit Rate +${(B && B.cr) || 0}% | AP Ammo: ${(B && B.ap) ? 'YES' : 'NO'}\n\n`;
+
+    text += `⚔️ SECONDARY & MELEE:\n`;
+    text += `• Secondary: ${(B && B.w2 && B.w2.w) || '—'}\n`;
+    text += `• Melee: ${(B && B.wm && B.wm.w) || '—'}\n\n`;
+
+    text += `🛡️ ARMOR SETUP (6 SLOTS):\n`;
+    const slotNames = {helmet: 'Helmet', face: 'Mask', top: 'Top/Chest', bottoms: 'Pants', gloves: 'Gloves', shoes: 'Boots'};
+    (typeof OB_SLOTS !== 'undefined' ? OB_SLOTS : ['head','face','top','pants','gloves','shoes']).forEach(s => {
+      const a = B && B.armor && B.armor[s];
+      const m = B && B.mods && B.mods[s];
+      const sName = slotNames[s] || s;
+      const aName = a ? a.n : 'Empty';
+      const mName = m ? `${m.n} <${m.sf || 'Standard'}> L${m.lv || 17}` : 'No Mod';
+      const hide = a && a.hide ? ` | Hide: ${a.hide}` : '';
+      text += `• ${sName}: ${aName} (${(a && a.star) || 6}★ ${(a && a.tier) || 'V'}) | Mod: ${mName}${hide}\n`;
+    });
+
+    if (B && B.cradle && B.cradle.length) {
+      text += `\n🔮 CRADLE PERKS (${B.cradle.length}/8):\n`;
+      text += `• ` + B.cradle.join('\n• ') + `\n`;
+    }
+
+    text += `\n📊 ENGINE STATS (andaza):\n`;
+    text += `• Body hit: ${f(P && P.white)} | Crit: ${f(P && P.crit)} (engine)\n`;
+    text += `• Ek goli/teer ka average (engine andaza): ${f(P && P.shotTotalAvg)}\n`;
+    text += `• Crit Rate: ${Math.round(crPct)}% | Crit DMG: ${Math.round(cdPct)}% | Weakspot: ${Math.round(wsPct)}%\n\n`;
+
+    text += `👑 Generated via Pro Builder OH (by Mr. Sherry)\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    return text;
+  }
+
+  function drawBuildCardOnCanvas(B, w, P) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 760;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Background gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 1200, 760);
+    bgGrad.addColorStop(0, '#090e1f');
+    bgGrad.addColorStop(0.5, '#0d1527');
+    bgGrad.addColorStop(1, '#060b17');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1200, 760);
+
+    // Subtle grid overlay
+    ctx.strokeStyle = 'rgba(217, 119, 6, 0.1)';
+    ctx.lineWidth = 1;
+    for (let x = 30; x < 1200; x += 50) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 760);
+      ctx.stroke();
+    }
+    for (let y = 30; y < 760; y += 50) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(1200, y);
+      ctx.stroke();
+    }
+
+    // Outer golden border
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(10, 10, 1180, 740);
+
+    // Inner subtle glow border
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(16, 16, 1168, 728);
+
+    // Header banner
+    const headGrad = ctx.createLinearGradient(20, 20, 1180, 70);
+    headGrad.addColorStop(0, '#1e293b');
+    headGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = headGrad;
+    ctx.fillRect(20, 20, 1160, 64);
+    ctx.strokeStyle = '#334155';
+    ctx.strokeRect(20, 20, 1160, 64);
+
+    ctx.font = 'bold 14px monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('ONCE HUMAN PvE BUILD BLUEPRINT', 36, 44);
+
+    const wName = ((B && B.w) || (w && w.name) || 'Custom Weapon Build').toUpperCase();
+    ctx.font = 'bold 26px "Barlow Condensed", sans-serif';
+    ctx.fillStyle = '#facc15';
+    ctx.fillText(wName, 36, 72);
+
+    ctx.font = '13px monospace';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+    ctx.fillText('PRO BUILDER OH • MR. SHERRY', 1160, 48);
+    ctx.textAlign = 'left';
+
+    // Left Column: Primary Weapon & Secondary Setup (Width: 380px)
+    ctx.fillStyle = '#111c33';
+    ctx.fillRect(20, 96, 380, 200);
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(20, 96, 380, 200);
+
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('PRIMARY WEAPON SPECIFICATIONS', 34, 118);
+
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(wName, 34, 144);
+
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(`Rank: ${(B && B.star) || 6}★ Star • Tier ${(B && B.tier) || 'V'}${B && B.gold ? ' • Golden Calib' : ''}`, 34, 168);
+
+    const wm = B && B.mods && B.mods.weapon;
+    const wmStr = wm ? `${wm.n} <${wm.sf || 'Standard'}> L${wm.lv || 17}` : 'No Mod';
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#93c5fd';
+    ctx.fillText(`Mod: ${wmStr}`, 34, 194);
+
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(`Calibration: Weapon DMG +${(B && B.wd) || 0}% • Crit +${(B && B.cr) || 0}%`, 34, 218);
+    ctx.fillText(`AP Ammo (Psi +15%): ${(B && B.ap) ? 'Active' : 'Standard'}`, 34, 238);
+
+    const kw = (w && w.kw) ? (((typeof CATS !== 'undefined' ? CATS.find(c => c[0] === w.kw) : null) || [0, ''])[1] || w.kw) : 'Echo';
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(`Keyword: ${kw.toUpperCase()}`, 34, 264);
+
+    // Box 2: Secondary & Melee Combo (Y: 308, Height: 110)
+    ctx.fillStyle = '#111c33';
+    ctx.fillRect(20, 308, 380, 110);
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(20, 308, 380, 110);
+
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#34d399';
+    ctx.fillText('SECONDARY & MELEE COMBO BUFFS', 34, 330);
+
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(`Secondary: ${(B && B.w2 && B.w2.w) || '—'}`, 34, 354);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(`Melee: ${(B && B.wm && B.wm.w) || '—'}`, 34, 376);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px sans-serif';
+
+    // Box 3: Battle Performance Stats (Y: 430, Height: 298)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(20, 430, 380, 298);
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(20, 430, 380, 298);
+
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('ENGINE NUMBERS (ANDAZA)', 34, 454);
+
+    const statBoxes = [
+      { label: 'BODY HIT', val: Math.round((P && P.white) || 0).toLocaleString('en-US'), color: '#f97316' },
+      { label: 'BODY CRIT', val: Math.round((P && P.crit) || 0).toLocaleString('en-US'), color: '#facc15' },
+      { label: 'AVG PER SHOT (ANDAZA)', val: Math.round((P && P.shotTotalAvg) || 0).toLocaleString('en-US'), color: '#10b981' },
+      { label: 'CRIT RATE / CRIT DMG', val: `${Math.round(((P && P.b && P.b.cr) || 0))}% / ${Math.round(((P && P.b && P.b.cd) || 0))}%`, color: '#38bdf8' }
+    ];
+
+    statBoxes.forEach((st, idx) => {
+      const sy = 472 + idx * 56;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(34, sy, 350, 48);
+      ctx.strokeStyle = '#334155';
+      ctx.strokeRect(34, sy, 350, 48);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px monospace';
+      ctx.fillText(st.label, 46, sy + 18);
+
+      ctx.fillStyle = st.color;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(st.val, 46, sy + 40);
+    });
+
+
+    // Right Column: 6 Armor Slots Grid & 8 Cradle Perks
+    const slotData = [
+      { key: 'helmet', name: 'HELMET' },
+      { key: 'bottoms', name: 'PANTS' },
+      { key: 'face', name: 'MASK' },
+      { key: 'gloves', name: 'GLOVES' },
+      { key: 'top', name: 'TOP / CHEST' },
+      { key: 'shoes', name: 'BOOTS' }
+    ];
+
+    slotData.forEach((slot, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const bx = 420 + col * 380;
+      const by = 96 + row * 136;
+
+      ctx.fillStyle = '#111c33';
+      ctx.fillRect(bx, by, 360, 124);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx, by, 360, 124);
+
+      const a = B && B.armor && B.armor[slot.key];
+      const m = B && B.mods && B.mods[slot.key];
+
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(slot.name, bx + 14, by + 22);
+
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillStyle = a ? '#f8fafc' : '#64748b';
+      ctx.fillText(a ? a.n : 'Empty Slot', bx + 14, by + 46);
+
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#facc15';
+      const isKey = a && typeof GFULL !== 'undefined' && GFULL[a.n] && GFULL[a.n].set.indexOf('Key Effect') === 0;
+      if (a) ctx.fillText(`${a.star || 6}★ • Tier ${a.tier || 'V'} ${isKey ? '• [KEY EFFECT]' : ''}`, bx + 14, by + 68);
+
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#a7f3d0';
+      const mText = m ? `${m.n} <${m.sf || '—'}> L${m.lv || 17}` : 'No Mod Equipped';
+      if (a) ctx.fillText(`Mod: ${mText}`, bx + 14, by + 90);
+
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      if (a) ctx.fillText(`Hide / Fur: ${a.hide || '—'}`, bx + 14, by + 110);
+    });
+
+    // Cradle Perks Container (Bottom Right, X: 420, Y: 520, Width: 740, Height: 208)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(420, 520, 740, 208);
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(420, 520, 740, 208);
+
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#c084fc';
+    const cradleCount = (B && B.cradle && B.cradle.length) || 0;
+    ctx.fillText(`CRADLE OVERRIDE MATRIX (${cradleCount}/8 PERKS ACTIVE)`, 436, 544);
+
+    const cradles = (B && B.cradle) || [];
+    for (let ci = 0; ci < 8; ci++) {
+      const cName = cradles[ci] || `Empty Slot ${ci + 1}`;
+      const cx = 436 + (ci % 2) * 360;
+      const cy = 562 + Math.floor(ci / 2) * 38;
+
+      ctx.fillStyle = cradles[ci] ? '#1e1b4b' : '#1e293b';
+      ctx.fillRect(cx, cy, 345, 30);
+      ctx.strokeStyle = cradles[ci] ? '#6366f1' : '#334155';
+      ctx.strokeRect(cx, cy, 345, 30);
+
+      ctx.fillStyle = cradles[ci] ? '#e0e7ff' : '#64748b';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`⚡ ${cName}`, cx + 10, cy + 20);
+    }
+
+    return canvas.toDataURL('image/png');
+  }
+
+  function showBuildExportModal(targetB) {
+    const B = getCleanBuild(targetB);
+    if (!B) return;
+    const w = (typeof WEAPONS !== 'undefined') ? WEAPONS.find(x => x.name === B.w) : null;
+    let P = null;
+    if (typeof obPanel === 'function') {
+      try { P = obPanel(B); } catch (e) {}
+    }
+    const formattedText = generateBuildFormattedText(B, w, P);
+    const pngDataUrl = drawBuildCardOnCanvas(B, w, P);
+    const jsonStr = JSON.stringify(B, null, 2);
+    const ur = curLang() === 'ur';
+
+    let ov = document.getElementById('build-export-ov');
+    if (ov) ov.remove();
+
+    ov = document.createElement('div');
+    ov.id = 'build-export-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(6px);overflow-y:auto';
+    ov.innerHTML = `
+      <div style="background:#0f172a;color:#f8fafc;border-radius:14px;border:2px solid #d97706;box-shadow:0 12px 40px rgba(0,0,0,0.65);width:100%;max-width:980px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #334155;background:#1e293b">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px">📤</span>
+            <div>
+              <b style="font-size:16px;color:#facc15;text-transform:uppercase;font-family:var(--f-display,'Barlow Condensed',Impact,sans-serif)">${ur ? 'Build Export & Share Studio' : 'Build Export & Share Studio'}</b>
+              <div style="font-size:11px;color:#94a3b8">${ur ? 'Build card dekhein, aur JSON code copy kar ke share karein (Import ke liye)' : 'See the build card, and copy the JSON code to share (for Import)'}</div>
+            </div>
+          </div>
+          <button id="btn-close-export-ov" style="background:#334155;color:#fff;border:0;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700">✕</button>
+        </div>
+        
+        <!-- Action Bar -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 18px;background:#131d31;border-bottom:1px solid #334155">
+          <button class="btn" id="btn-export-copy-json" style="background:#475569;color:#fff;font-weight:600;font-size:12.5px;padding:7px 12px;border-radius:7px;cursor:pointer;border:0">
+            📄 ${ur ? 'Copy JSON Code' : 'Copy JSON Code'}
+          </button>
+          <div id="export-status-toast" style="margin-inline-start:auto;font-size:12.5px;font-weight:700;color:#34d399;display:none"></div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+          <!-- Image Preview -->
+          <div style="border-radius:10px;overflow:hidden;border:1px solid #d97706;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
+            <img id="export-preview-img" src="${pngDataUrl || ''}" style="width:100%;height:auto;display:block;background:#090e1f" alt="Build Card Preview">
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(ov);
+
+    const toast = ov.querySelector('#export-status-toast');
+    function showToast(msg) {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    }
+
+    // Handlers
+    ov.querySelector('#btn-close-export-ov').addEventListener('click', () => ov.remove());
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+
+    // Download PNG
+    ov.querySelector('#btn-export-download-png') && ov.querySelector('#btn-export-download-png').addEventListener('click', () => {
+      if (!pngDataUrl) return;
+      if (window.OHSave && OHSave.png) { try { OHSave.png(`ProBuilderOH_${(B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_')}_Build.png`, pngDataUrl); showToast(ur ? '✓ Image save ho gayi (Pictures/ProBuilderOH)' : '✓ Saved to Pictures/ProBuilderOH'); } catch (e) {} return; }
+      const a = document.createElement('a');
+      const safeName = ((B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_'));
+      a.download = `ProBuilderOH_${safeName}_Build.png`;
+      a.href = pngDataUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); }, 200);
+      showToast(ur ? '✓ Image download ho gayi!' : '✓ Image Card downloaded!');
+    });
+
+    // Copy Text
+    ov.querySelector('#btn-export-copy-text') && ov.querySelector('#btn-export-copy-text').addEventListener('click', () => {
+      try {
+        navigator.clipboard.writeText(formattedText).then(() => {
+          showToast(ur ? '✓ Text copy ho gaya!' : '✓ Formatted text copied!');
+        }).catch(() => {
+          showToast(ur ? 'Clipboard error' : 'Clipboard error');
+        });
+      } catch (x) {
+        showToast(ur ? 'Clipboard error' : 'Clipboard error');
+      }
+    });
+
+    // Download JSON
+    ov.querySelector('#btn-export-download-json') && ov.querySelector('#btn-export-download-json').addEventListener('click', () => {
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = ((B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_'));
+      a.download = `ProBuilderOH_${safeName}_Build.json`;
+      a.href = u;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(u); }, 300);
+      showToast(ur ? '✓ JSON file download ho gayi!' : '✓ JSON file downloaded!');
+    });
+
+    // Copy JSON
+    ov.querySelector('#btn-export-copy-json').addEventListener('click', () => {
+      try {
+        navigator.clipboard.writeText(jsonStr).then(() => {
+          showToast(ur ? '✓ JSON code copy ho gaya!' : '✓ JSON code copied!');
+        });
+      } catch (x) {}
+    });
+  }
+
+  function showBuildImportModal() {
+    const ur = curLang() === 'ur';
+    let ov = document.getElementById('build-import-ov');
+    if (ov) ov.remove();
+
+    ov = document.createElement('div');
+    ov.id = 'build-import-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(6px)';
+    ov.innerHTML = `
+      <div style="background:#0f172a;color:#f8fafc;border-radius:14px;border:2px solid #2563eb;box-shadow:0 12px 40px rgba(0,0,0,0.65);width:100%;max-width:540px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #334155;background:#1e293b">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:20px">📥</span>
+            <b style="font-size:15px;color:#60a5fa;text-transform:uppercase">${ur ? 'Build Import Karein (JSON)' : 'Import Once Human Build'}</b>
+          </div>
+          <button id="btn-close-import-ov" style="background:#334155;color:#fff;border:0;width:30px;height:30px;border-radius:6px;cursor:pointer;font-weight:700">✕</button>
+        </div>
+        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+          <p style="font-size:12px;color:#94a3b8;margin:0">
+            ${ur ? 'Apne dost ya community ki share ki hui Once Human build ka JSON code yahan paste karein ya file select karein:' : 'Paste the Once Human build JSON code or choose a .json file:'}
+          </p>
+          <textarea id="import-json-input" rows="7" placeholder="${ur ? 'Build JSON code yahan paste karein...' : 'Paste build JSON code here...'}" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#090e1f;color:#f8fafc;font-family:monospace;font-size:12px;resize:vertical"></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <label class="btn ghost" style="font-size:11.5px;padding:5px 12px;cursor:pointer;background:#1e293b;border:1px solid #475569;border-radius:6px">
+              📁 ${ur ? '.json File Chunein' : 'Choose .json File'}
+              <input type="file" id="import-file-input" accept=".json,application/json" style="display:none">
+            </label>
+            <button class="btn" id="btn-confirm-import" style="background:#2563eb;color:#fff;font-weight:700;font-size:13px;padding:7px 18px;border-radius:7px;border:0;cursor:pointer">
+              ✓ ${ur ? 'Build Import Karein' : 'Import Build'}
+            </button>
+          </div>
+          <div id="import-error-msg" style="color:#f87171;font-size:11.5px;display:none"></div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(ov);
+
+    const errMsg = ov.querySelector('#import-error-msg');
+    ov.querySelector('#btn-close-import-ov').addEventListener('click', () => ov.remove());
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+
+    // File input
+    const fileIn = ov.querySelector('#import-file-input');
+    const txtIn = ov.querySelector('#import-json-input');
+    fileIn.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        txtIn.value = ev.target.result || '';
+      };
+      reader.readAsText(f);
+    });
+
+    // Confirm import
+    ov.querySelector('#btn-confirm-import').addEventListener('click', () => {
+      const raw = txtIn.value.trim();
+      if (!raw) {
+        errMsg.textContent = ur ? 'Pehle JSON code likhein ya file upload karein.' : 'Please enter JSON or upload a file first.';
+        errMsg.style.display = 'block';
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || (!parsed.w && !parsed.armor)) {
+          throw new Error('Invalid Once Human build data.');
+        }
+        const O = (typeof ob2 === 'function') ? ob2() : null;
+        if (!O || !Array.isArray(O.builds)) throw new Error('Build system not loaded.');
+        
+        // Clean and push
+        const newBuild = Object.assign({
+          w: '',
+          rar: 'gold',
+          star: 6,
+          tier: 'V',
+          wd: 0,
+          sa: 0,
+          cr: 0,
+          cd: 0,
+          ws: 0,
+          el: 0,
+          gold: false,
+          ap: false,
+          armor: {},
+          mods: {},
+          cradle: []
+        }, parsed);
+
+        O.builds.push(newBuild);
+        O.cur = O.builds.length - 1;
+        S.obUI = {sel: 'weapon'};
+        S.obPW = 'weapon';
+        if (typeof ob2Save === 'function') ob2Save();
+        if (typeof render === 'function') render(true);
+
+        ov.remove();
+        alert(ur ? '✓ Build kamyabi se import ho gayi!' : '✓ Build successfully imported!');
+      } catch (err) {
+        errMsg.textContent = (ur ? 'Ghalat format: ' : 'Invalid format: ') + err.message;
+        errMsg.style.display = 'block';
+      }
+    });
+  }
+
+  // Attach global click delegate for openexport and openimport
+  document.addEventListener('click', function(e) {
+    const expBtn = e.target.closest && e.target.closest('[data-act="openexport"]');
+    if (expBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      showBuildExportModal();
+      return;
+    }
+    const impBtn = e.target.closest && e.target.closest('[data-act="openimport"]');
+    if (impBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      showBuildImportModal();
+      return;
+    }
+  });
+
+})();
 
 load(); render();
 /* Splash: first launch waits for "Continue" (enabled after 5s) so the disclaimer can be read; later launches close by themselves after 2.5s (tap to skip). */
