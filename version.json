@@ -1,5 +1,5 @@
 {
-  "version": 227,
+  "version": 232,
   "url": "https://raw.githubusercontent.com/Sherryapk-art/probuilderoh-updates/main/index.html",
-  "notes": "0.08: New damage formula (tested in game), Own build page, Ask me builds for every weapon (low/full HP) + calculator, new SOCR Cosmic Visitor and Snowline Elite Vest, feedback from Settings."
+  "notes": "0.13: Own Build calibration from a list (style cards, then blueprints in gold/purple boxes, golden formula automatic). Stats panel now shows game-panel values only. Energy option (HP) in Settings. Engine: armor worn bonus on every star, Burn max stacks, Hardy Gloves explosion, Hammerhead Shark tested."
 }
