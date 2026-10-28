@@ -2959,7 +2959,7 @@ document.addEventListener('input', e => { const t = e.target; if (!t || !t.datas
 .uver{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px}
 .uver b{font-size:15px}.uver .btn{align-self:flex-start}
 `; document.head.appendChild(st); })();
-const PAGE_VER = 233;
+const PAGE_VER = 234;
 function appVer(){ try { if (window.OHUpdate && OHUpdate.version) return +OHUpdate.version() || PAGE_VER; } catch (e) {} return PAGE_VER; }
 const CPY = () => `<div class="cpy">© ${DEV.year} ${esc(DEV.name)} · Developed by ${esc(DEV.name)} · v${esc(verLabel(appVer()))}<br>${esc(ui('disclaimer'))}</div>`;
 updateBox = function(){ const ur = curLang() === 'ur', T = (e, u) => esc(ur ? u : e);
@@ -3679,6 +3679,8 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
     const kx = 1 + ((P.b && P.b.kx) || 0) / 100;
 
     // --- BOUNCE ---
+    // TESTED 2026-10-25 (Burden of Betrayal, game tests 3-8): P.bowT = tested Bounce + Echo per arrow (bowTested below)
+    if (w.kw === 'bounce' && P.bowT) return P.bowT.kwPerArrow;
     if (w.kw === 'bounce') {
       const baseHits = baseBounceCount(w);
       const extraHits = (P.b && P.b.bc) || 0;
@@ -3762,6 +3764,48 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
     return rate * kx * (P.kw[1] || 0);
   };
 
+  /* 3b. BOW BOUNCE + ECHO — TESTED 2026-10-25 (game tests 3-8 on dummy; notes/weapons/Burden of Betrayal.md).
+     Test 8 (5 arrows, sirf setup + rules se): formula 583,796 vs game 583,795. Har hit +-0.05%.
+     Sirf un weapons par jin ke text mein "Echo stacks x80%" (Burden of Betrayal). Baaqi bounce weapons: purana hisaab (test nahi).
+     - Bounces per arrow = 1 + "Number of Bounces +X" + "additional +Y at full charge" + "no enemies ... +Z" (dummy) + "additionally trigger N more times"
+       ("Bounce targets +2" = zyada dushman, ginti nahi). Burden + Sharp Blade = 6 (game: 6 har teer).
+     - Bounce hit (bina crit) = seedha body (bina crit) x 0.40 x (1 + Bounce bucket). Bucket JAMA: full charge 20 + Bounce DMG suffix + Deadly Combo 25 + Rampage 5 x 5 stack (lagatar).
+     - Bounce crit: Crit Rate + Bounce Crit Rate; zarb 1 + Crit DMG + Bounce Crit DMG (First-Move Advantage aur Critical Surge bhi lagte).
+     - Bounce weakspot: (WS + Bounce WS) crit ke andar JAMA; dummy par 38% bounce hits weakspot (naap). Marked Strike sirf Bull's Eye par -> nikala.
+     - Precision Bounce "After triggering Bounce N times, next bullet's Bounce DMG +X%": us teer ke bounce hits x(1+X) ALAG zarb; har (N / triggers per arrow) teer (6/2 = har 3rd).
+     - Echo = bina-crit bounce x (4 stack x 0.8 / 0.4) x crit zarb; har teer 1; crit = bounce crit rate (tests 4-8 mein 19/19 crit, 23-24 Oct 7,127 / 7,489 bina crit); Precision Bounce Echo par NAHI.  */
+  const BOW_WS_SHARE = 0.38;   /* naap: 23/60 bounce hits weakspot (dummy, tests 5-6) */
+  function bowTested(w, P, B){
+    if (!w || w.kw !== 'bounce' || !P || !P.b) return null;
+    const wtxt = (w.wk || []).join(' ');
+    const em = wtxt.match(/Echo stacks\s*[×x]\s*(\d+)%/i); if (!em) return null;
+    let src = []; try { src = (obFx(B).src || []).map(x => String(x[1] || '')); } catch (e) { return null; }
+    const PB_RE = /After triggering Bounce (\d+) times, the next bullet's Bounce DMG \+ ?([\d.]+)%/i;
+    let n = 1, trig = 1, kb = 0, pbN = 0, pbX = 0, mark = 0;
+    src.forEach(t => {
+      let m;
+      if (!/no enemies to Bounce/i.test(t) && (m = t.match(/Number of Bounces\s*\+\s*(\d+)/i))) { n += +m[1]; const a = t.match(/additional\s*\+\s*(\d+)\s*at full charge/i); if (a) n += +a[1]; }
+      if (/no enemies to Bounce/i.test(t) && (m = t.match(/Bounces\s*\+\s*(\d+)/i))) n += +m[1];
+      if ((m = t.match(/additionally trigger\s*(\d+)\s*more time/i))) { n += +m[1]; trig += +m[1]; }
+      if ((m = t.match(PB_RE))) { pbN = +m[1]; pbX = +m[2]; return; }
+      let f = []; try { f = fxParse(t, {}); } catch (e) {}
+      const st = t.match(/Up to\s*(\d+)\s*stacks/i);
+      f.forEach(x => { if (x[0] === 'k' && /Bounce|bullet effect/i.test(t)) kb += x[1] * (st ? +st[1] : 1); });
+    });
+    const white = P.white || 0;
+    const nc = white * 0.40 * (1 + kb / 100);
+    const pc = Math.min(100, (P.b.cr || 0) + (P.b.kcr || 0)) / 100;
+    const cdb = ((P.b.cd || 0) + (P.b.kcd || 0)) / 100;
+    const wsb = P.b.nows ? 0 : (Math.max(0, (P.b.ws || 0) - mark) + (P.b.kws || 0)) / 100;
+    const bAvg = nc * (1 + pc * cdb + BOW_WS_SHARE * wsb);
+    const every = pbN ? Math.max(1, Math.round(pbN / trig)) : 0;
+    const pbAvg = every ? 1 + (pbX / 100) / every : 1;
+    const stacks = +((wtxt.match(/Echo:\s*Max\s*(\d+)\s*stacks/i) || [0, 4])[1]);
+    const echo = nc * (stacks * (+em[1] / 100) / 0.40) * (1 + pc * cdb);   /* Echo crit = bounce crit rate (24 Oct: 7,127 bina crit, 10,335 crit) */
+    return { n, kb, nc: Math.round(nc), bAvg: Math.round(bAvg), every, echo: Math.round(echo), pc, cdb, wsb,
+             kwPerArrow: n * bAvg * pbAvg + echo };
+  }
+
   /* 4. Average weapon bullet damage */
   function calcShotAvg(P){
     if (!P) return 0;
@@ -3787,9 +3831,13 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
 
     // Multi-hit specific metrics
     if (w.kw === 'bounce') {
+      const T = bowTested(w, P, B);   /* TESTED 2026-10-25 */
+      if (T) { P.bowT = T; P.bounceCount = T.n; P.bounceHitT = T.nc; P.echoHit = T.echo; P.pbEvery = T.every;
+        P.bounceTotal = Math.round(T.bAvg * T.n); }
+      else {
       const bCnt = Math.max(1, baseBounceCount(w) + ((P.b && P.b.bc) || 0));
       P.bounceCount = bCnt;
-      P.bounceTotal = Math.round((P.kw ? P.kw[1] : 0) * bCnt);
+      P.bounceTotal = Math.round((P.kw ? P.kw[1] : 0) * bCnt); }
     } else if (w.kw === 'shrapnel') {
       const sParts = Math.max(1, 1 + ((P.b && P.b.sp) || 0));
       P.shrapnelParts = sParts;
@@ -4757,12 +4805,12 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
 
     ctx.font = 'bold 12px monospace';
     ctx.fillStyle = '#f59e0b';
-    ctx.fillText('ENGINE NUMBERS (ANDAZA)', 34, 454);
+    ctx.fillText((P && (P.p90T || P.bowT || P.awsT)) ? 'ENGINE NUMBERS (TESTED FORMULA)' : 'ENGINE NUMBERS (ANDAZA)', 34, 454);
 
     const statBoxes = [
       { label: 'BODY HIT', val: Math.round((P && P.white) || 0).toLocaleString('en-US'), color: '#f97316' },
       { label: 'BODY CRIT', val: Math.round((P && P.crit) || 0).toLocaleString('en-US'), color: '#facc15' },
-      { label: 'AVG PER SHOT (ANDAZA)', val: Math.round((P && P.shotTotalAvg) || 0).toLocaleString('en-US'), color: '#10b981' },
+      { label: (P && (P.p90T || P.bowT || P.awsT)) ? 'AVG PER SHOT (TESTED)' : 'AVG PER SHOT (ANDAZA)', val: Math.round((P && P.shotTotalAvg) || 0).toLocaleString('en-US'), color: '#10b981' },
       { label: 'CRIT RATE / CRIT DMG', val: `${Math.round(((P && P.b && P.b.cr) || 0))}% / ${Math.round(((P && P.b && P.b.cd) || 0))}%`, color: '#38bdf8' }
     ];
 
@@ -4889,7 +4937,7 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
             <span style="font-size:22px">📤</span>
             <div>
               <b style="font-size:16px;color:#facc15;text-transform:uppercase;font-family:var(--f-display,'Barlow Condensed',Impact,sans-serif)">${ur ? 'Build Export & Share Studio' : 'Build Export & Share Studio'}</b>
-              <div style="font-size:11px;color:#94a3b8">${ur ? 'Build card dekhein, aur JSON code copy kar ke share karein (Import ke liye)' : 'See the build card, and copy the JSON code to share (for Import)'}</div>
+              <div style="font-size:11px;color:#94a3b8">${ur ? 'Build ka snapshot dekhein aur image gallery mein save karein' : 'See your build snapshot and save the image to your gallery'}</div>
             </div>
           </div>
           <button id="btn-close-export-ov" style="background:#334155;color:#fff;border:0;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700">✕</button>
@@ -4897,8 +4945,8 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
         
         <!-- Action Bar -->
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 18px;background:#131d31;border-bottom:1px solid #334155">
-          <button class="btn" id="btn-export-copy-json" style="background:#475569;color:#fff;font-weight:600;font-size:12.5px;padding:7px 12px;border-radius:7px;cursor:pointer;border:0">
-            📄 ${ur ? 'Copy JSON Code' : 'Copy JSON Code'}
+          <button class="btn" id="btn-export-download-png" style="background:#10b981;color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:7px;cursor:pointer;border:0">
+            🖼️ ${ur ? 'Image download (Gallery)' : 'Download Image (Gallery)'}
           </button>
           <div id="export-status-toast" style="margin-inline-start:auto;font-size:12.5px;font-weight:700;color:#34d399;display:none"></div>
         </div>
@@ -4930,7 +4978,7 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
     // Download PNG
     ov.querySelector('#btn-export-download-png') && ov.querySelector('#btn-export-download-png').addEventListener('click', () => {
       if (!pngDataUrl) return;
-      if (window.OHSave && OHSave.png) { try { OHSave.png(`ProBuilderOH_${(B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_')}_Build.png`, pngDataUrl); showToast(ur ? '✓ Image save ho gayi (Pictures/ProBuilderOH)' : '✓ Saved to Pictures/ProBuilderOH'); } catch (e) {} return; }
+      if (window.OHSave && OHSave.png) { try { const fn = `ProBuilderOH_${(B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.png`; const ok = OHSave.png(fn, pngDataUrl); showToast(ok === false ? (ur ? 'Save nahi hui (ijazat?)' : 'Not saved (permission?)') : (ur ? '✓ Gallery mein save (Pictures/ProBuilderOH)' : '✓ Saved to Gallery (Pictures/ProBuilderOH)')); } catch (e) { showToast(ur ? 'Save error' : 'Save error'); } return; }
       const a = document.createElement('a');
       const safeName = ((B.w || 'Build').replace(/[^a-zA-Z0-9]/g, '_'));
       a.download = `ProBuilderOH_${safeName}_Build.png`;
@@ -4969,7 +5017,7 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
     });
 
     // Copy JSON
-    ov.querySelector('#btn-export-copy-json').addEventListener('click', () => {
+    ov.querySelector('#btn-export-copy-json') && ov.querySelector('#btn-export-copy-json').addEventListener('click', () => {
       try {
         navigator.clipboard.writeText(jsonStr).then(() => {
           showToast(ur ? '✓ JSON code copy ho gaya!' : '✓ JSON code copied!');
@@ -5102,6 +5150,453 @@ window.addEventListener('click', e => { if (!ROT_FIX || !e.isTrusted) return; co
     }
   });
 
+})();
+
+
+/* ===== Fix 14 — BUG FIXES 2026-10-25 (game panels se saboot; notes/ENGINE-BUGS-FIX14.md) =====
+   BUG-1 Fur zarb: armor ka HP/Psi = data x star x FUR darja: koi fur nahi x1.00, basic fur x1.16, legendary (Lunar / Starfall / Dreamfused) x1.40.
+         Saboot: Savior Gloves Dreamfused 1110 -> 1942, Psi 69 -> 121; Savior Top Lunar Rabbit 1924 -> 3367; mask/pants/shoes basic 370->536, 1776->2575, 1480->2146 (6 star).
+   BUG-2 Hide ka damage effect sirf MASK (Face) slot par. Doosre slot par wahi hide resist/movement deti hai (data/hides "Effects for Armor" columns).
+         Saboot: SKS shoes Wolf Skin = Movement +4 (WS nahi); helmet/top Rabbit Fur se Elemental +4 panel par nahi.
+         Dreamfused hides list mein shamil (gloves par sirf gathering).
+   BUG-3 "Increases damage dealt to all DMG Boost" ki 7.5 wali line level se: L17 7.5, L14-16 6, L5-9 3 (game); L10-13 4.5 aur L1-4 1.5 ANDAZA.
+         Saboot: Elemental Overload <Crescent DE> L14 = 6.0; Elemental Resonance <Aero DE> L9 = 3; Rush Hour <Downstar DE> L8 = 3; Crit Amplifier <Aero> L9 = 3.
+   BUG-4 Suffix line ki doosri value ("additional + X% for aerial hits", "Extra + X% based on Shield", "increased by up to X%") bhi level se scale.
+         Saboot: Crit Amplifier <Aero> L9: 3.6 / 1.8 (L17 6 / 3); Elemental Overload L14: 4.0 / 6.4 (L17 5 / 8).
+   BUG-5 "additional ... for aerial hits" zameen par nahi lagta -> panel aur dummy dono mein sirf pehla hissa. (Bow: Crit DMG +7.5 aur Weapon +3 zyada gin raha tha.)
+   BUG-6 Static (game panel) mein shart wali line POORI gayab ho jati thi -> ab bina-shart pehla hissa rehta hai ("Elemental DMG +4%. Extra ...shield" -> +4).
+   BUG-7 Marked Strike "+20% WS against targets marked with The Bull's Eye" har weakspot par jur raha tha -> ab alag bucket (wsm), sirf Bull's Eye par.
+   BUG-1b Pollution Resist par star/fur zarb nahi (bow panel Pollution 80 = data jama).
+   BUG-8 Static panel mein shart wale cradle (Shield Protection, Tactical Combo, Status Enhancement ...) bhi jur rahe the -> static mein sirf be-shart (PWM "when wielding" rehta).
+         Saboot: SKS panel Other 21 = 7 x 3 (Shield Protection nahi), bow panel Other 21. */
+(function(){
+  /* BUG-1 */
+  const FUR = h => !h ? 1 : /^(Lunar|Starfall|Dreamfused)\b/i.test(h) ? 1.40 : 1.16;
+  obArmorStats = function(a){ const g = GFULL[a.n]; if (!g) return {}; const max = rarityOf(g) || 6, star = Math.min(+a.star || max, max), ti = Math.max(0, OB_TIERS.indexOf(a.tier || 'V'));
+    const sf = OB_STAR(star, max), fur = FUR(a.hide), out = {};
+    g.stats.forEach(r => { const t = OB_ATIER[r[0]]; out[r[0]] = Math.round(+r[1] * sf * (t ? t[ti] : 1) * (r[0] === 'Pollution Resist' ? 1 / sf : fur)); }); return out; };   /* Pollution: sirf data (star/fur nahi) — bow panel 80 = 12+16+16+12+12+12 */
+  /* BUG-2: Dreamfused hides (Face column) */
+  [['Dreamfused Rabbit Fur', 'Elemental DMG +4% x2 in the Dream Zone', [['el', 4, 1]]],
+   ['Dreamfused Wolf Skin', 'Weakspot DMG +3% x2 in the Dream Zone', [['ws', 3, 1]]],
+   ['Dreamfused Deer Hide', 'Impact DMG +12% x2 in the Dream Zone', [['m', 12, .5]]],
+   ['Dreamfused Wool', 'Status DMG (data kata) x2 in the Dream Zone', []],
+   ['Rawhide', 'Mask par koi damage effect nahi (Top/Pants: Heat Resist +5)', []]].forEach(h => { if (!HA_HIDES.find(x => x[0] === h[0])) HA_HIDES.push(h); });
+  /* BUG-9 (26 Oct): PDW90 data DMG 171 = 6★ value (Blueprint Conversion 2026-10-19: 1★ = 137) -> star table mein; card 294 game EXACT */
+  if (typeof OB_AT === 'object' && !OB_AT['Holographic Resonance']) OB_AT['Holographic Resonance'] = ['gold', 6];
+  /* BUG-7 */
+  const ms = CRADLE.find(c => c[0] === 'Marked Strike'); if (ms) ms[2] = [['wsm', 20]];
+  /* BUG-2 + BUG-8 */
+  const _obFx0F = obFx0;
+  obFx0 = function(B){ if (!B) return _obFx0F(B); const B2 = Object.assign({}, B, {armor: {}});
+    OB_SLOTS.forEach(k => { const a = B.armor && B.armor[k]; if (!a) return; B2.armor[k] = (a.hide && k !== 'face') ? Object.assign({}, a, {hide: a.hide + ' ·'}) : a; });
+    if (FX_STATIC) B2.cradle = (B.cradle || []).filter(n => { const c = CRADLE.find(x => x[0] === n); return !c || !FX_COND.test(c[1]) || /when wielding/i.test(c[1]); });
+    return _obFx0F(B2); };
+  /* BUG-3 */
+  const boostLv = lv => lv >= 17 ? 7.5 : lv >= 14 ? 6 : lv >= 10 ? 4.5 : lv >= 5 ? 3 : 1.5;
+  const _omd = obModDefault;
+  obModDefault = function(mod, sfName, lv){ const v = _omd(mod, sfName, lv); const sf = (mod.suffixes || []).find(x => x.n === sfName); if (!sf) return v;
+    return v.map((x, i) => { const t = String(sf.stats[i] || ''); return (/DMG Boost/.test(t) && x === 7.5) ? boostLv(+lv || 17) : x; }); };
+  /* BUG-4 */
+  const _oml = obModLines;
+  obModLines = function(m){ const L = _oml(m); if (!m || !L.length) return L; const all = m.slot === 'weapon' ? Object.values(WMODS).flat() : (AMODS[BG_AMKEY[m.slot]] || []);
+    const mod = all.find(x => x.n === m.n), sf = mod && (mod.suffixes || []).find(x => x.n === m.sf); if (!sf) return L;
+    let j = 0; sf.stats.forEach((orig, i) => { if (typeof orig !== 'string') return; j++; const l = L[j]; if (!l || /DMG Boost/.test(orig)) return;
+      const nums = [...orig.matchAll(/(\d+(?:\.\d+)?)%/g)], v = (m.vals || [])[i]; if (nums.length < 2 || v == null || !+nums[0][1]) return;
+      const r = v / +nums[0][1]; let k = 0; l.t = l.t.replace(/(\d+(?:\.\d+)?)(%)/g, (x, a, c) => (++k === 1 ? x : (Math.round(+a * r * 10) / 10) + c)); });
+    return L; };
+  /* BUG-5 + BUG-6 */
+  const _fxpF = fxParse;
+  fxParse = function(t, pref){ const s = String(t || '').trim(); let m;
+    if ((m = s.match(/^(.*?\+\s?[\d.]+%),\s*additional\s*\+\s*[\d.]+%\s*for aerial hits\.?$/i))) return _fxpF(m[1], pref);
+    if (FX_STATIC && (m = s.match(/^((?:Element(?:al)?|Status|Weapon|Crit|Frost|Melee)[^.]*?\+\s?[\d.]+%)\.\s*Extra\b/i))) return _fxpF(m[1], pref);
+    if (FX_STATIC && (m = s.match(/^(.*?\+\s?[\d.]+%),\s*increased by up to/i))) return _fxpF(m[1], pref);
+    return _fxpF(t, pref); };
+})();
+
+/* ===== Fix 14 — SKS Pathfinder ANDAZA 2026-10-25 (PAKKA NAHI; user ne purani reports se andaza manga) =====
+   Game text: charged shot = penetrating Ice Spike, Ice Elemental STATUS DMG = 110% Attack ("benefits from Frost Vortex DMG bonus").
+   Frost Vortex: 8 tick (0.5s, 4s), ek waqt mein ek FV; tick = Psi x 50% x (1+FV DMG) x (1+Status) x (1+Elemental) x (1+Other) (Icy Rain se pakka).
+   Purani video (stack test): ek FV ke saare tick barabar = buff FV banne par "snapshot".
+   Frost Construct: Ice Spikes +10% (alag zarb, panel par nahi). Frost Tactical Vest: FV banne par Ice Spikes 120% Psi.
+   ANDAZA: buffs = static aur "sab on" ka AADHA (stacks/procs hamesha poore nahi); fast fire mein 75% goli charged.
+   Purane tests se mawazna (notes/weapons/SKS Pathfinder.md): ruk ruk 3 goli charge ~50k (game 45-52k), bina charge ~34.5k (game 35k),
+   FV tick ~3,050 (game 2,266-3,822), fast 20 goli ~17k/goli (game 18.5k). Ice Spike head ~15.6k (game laal 19.8-25.3k) — KAM. */
+(function(){
+  const SKS_CHARGE = 0.75;
+  const _obPanelS = obPanel;
+  obPanel = function(B){ const P = _obPanelS(B); if (!P || !P.b) return P; const w = WEAPONS.find(x => x.name === B.w);
+    if (!w || !/charged shot, launching a penetrating ice spike/i.test((w.wk || []).join(' '))) return P;
+    const s0 = P.sb || P.b, s1 = P.b, mid = k => (((s0[k] || 0) + (s1[k] || 0)) / 2) / 100;
+    const S = mid('s'), EL = mid('el'), O = mid('o'), K = mid('k'), W = mid('w'), WS = (P.b.nows ? 0 : (P.b.ws || 0) / 100);
+    const atk = P.atk || 0, psi = P.psi || 0, M = (1 + S) * (1 + EL) * (1 + O), wsShare = (typeof KW_WSR !== 'undefined') ? KW_WSR : 0.3;
+    const fc = /Frost Constructs/i.test((P.src || []).map(x => x[1]).join(' ')) ? 1.10 : 1;
+    const vestOn = /When Frost Vortex is created, additional Ice Spikes/i.test((P.src || []).map(x => x[1]).join(' '));
+    const tick = psi * 0.5 * M * (1 + K);
+    const ice = atk * 1.10 * M * fc * (1 + K);                     /* body */
+    const vest = vestOn ? psi * 1.20 * M * fc : 0;
+    const goli = atk * (1 + W) * (1 + O);                          /* body, bina crit */
+    const cr = Math.min(100, P.b.cr || 0) / 100, cd = (P.b.cd || 0) / 100;
+    const rate = (+((w.st || []).find(r => r[0] === 'Fire Rate') || [0, 60])[1]) / 60 || 1;
+    const fvPerShot = 1 / (4 * rate);
+    const per = goli * (1 + cr * cd) * (1 + wsShare * WS) + SKS_CHARGE * ice * (1 + wsShare * WS) + fvPerShot * (8 * tick + vest);
+    P.sksT = {andaza: true, tick: Math.round(tick), ice: Math.round(ice), iceHead: Math.round(ice * (1 + WS)), vest: Math.round(vest), goli: Math.round(goli),
+      slowCharged: Math.round(goli * (1 + WS) + ice * (1 + WS) + 8 * tick + vest), slowNoCharge: Math.round(goli * (1 + WS) + 8 * tick + vest)};
+    P.shotTotalAvg = Math.round(per);
+    return P; };
+})();
+
+/* ===== Fix 14 — THE BULL'S EYE weapons + P90 AoE — TESTED 2026-10-28 (video screen-20261028-102628, notes/weapons/PDW90 Holographic Resonance.md) =====
+   Game tests (Gemini step tests 1-5B + AoE test, sab EXACT):
+   - Bull's Eye ki apni vulnerability 8% (alag zarb): bare P90 345 -> marked 373 (x1.08); weapon mod ke saath 16%: 412.
+   - Earthly Boots "Additional DMG +30% to enemies under The Bull's Eye" = OTHER bucket (Boost ke saath JAMA): 345 x 1.33 x 1.16 = 532.
+   - Weapon DMG aur Other ALAG zarb: 345 x 1.084 x 1.39 x 1.16 = 603; crit x 2.12 = 1,278.
+   - AoE "Every 11 hits ... 800% attack": har 11vi goli; HAMESHA weakspot; WS crit ke andar JAMA:
+       AoE = goli (bina crit, marked) x 8 x (1 + WS [+ CD agar crit])  -> 4,824 x 1.42 = 6,850 ; 4,824 x 2.54 = 12,253 (game EXACT).
+     WS = weapon WS + "WS on targets with Bull's Eye" (+ Marked Strike — test nahi hua). */
+(function(){
+  const _fxpB = fxParse;
+  fxParse = function(t, pref){ const m = String(t || '').match(/Additional DMG \+ ?([\d.]+)% to enemies under The Bull's Eye/i);
+    if (m) return FX_STATIC ? [] : [['o', +m[1], 1, 'bullseye']]; return _fxpB(t, pref); };
+  const _obPanelB = obPanel;
+  obPanel = function(B){ const P = _obPanelB(B); if (!P || !P.b) return P; const w = WEAPONS.find(x => x.name === B.w);
+    if (!w || w.kw !== 'bullseye') return P;
+    P.b.v = (P.b.v || 0) + 8;                                    /* Bull's Eye ki apni vulnerability (target marked) */
+    P.white = Math.round(P.atk * (1 + (P.b.a || 0) / 100) * (1 + (P.b.w || 0) / 100) * (1 + (P.b.o || 0) / 100) * (1 + P.b.v / 100));
+    P.crit = Math.round(P.white * (1 + (P.b.cd || 0) / 100)); P.head = P.b.nows ? P.white : Math.round(P.white * (1 + (P.b.ws || 0) / 100));
+    const cr = Math.min(100, P.b.cr || 0) / 100, wsr = (typeof KW_WSR !== 'undefined') ? KW_WSR : 0.3;
+    P.shotTotalAvg = Math.round(P.white * (1 + cr * (P.b.cd || 0) / 100) * (1 + wsr * (P.b.nows ? 0 : (P.b.ws || 0) / 100)));
+    return P; };
+})();
+
+/* ===== Fix 14 — "Every N hits, AoE Weapon DMG = X% attack" (P90 Holographic Resonance) — TESTED 2026-10-28 (pehle ANDAZA 26 Oct) =====
+   Game text: "Every 11 hits, triggers AoE DMG dealing Weapon DMG equal to 800%attack ... (DMG against Metas 30%)".
+   AoE hit = goli (bina crit, sab buckets) x X/100; crit goli jaisa (video: narangi 32,811-47,236 aur laal 15,759 / 18,267); weakspot nahi.
+   Har goli ka hissa = AoE avg / N. PAKKA NAHI — bare P90 test chahiye. */
+(function(){
+  const AOE_RE = /Every (\d+) hits, triggers AoE DMG dealing Weapon DMG equal to (\d+)%\s*attack/i;
+  const _obPanelA = obPanel;
+  obPanel = function(B){ const P = _obPanelA(B); if (!P || !P.b) return P; const w = WEAPONS.find(x => x.name === B.w); if (!w) return P;
+    const m = (w.wk || []).join(' ').match(AOE_RE); if (!m) return P;
+    const n = +m[1], pct = +m[2] / 100, cr = Math.min(100, P.b.cr || 0) / 100, cd = (P.b.cd || 0) / 100;
+    const ws = P.b.nows ? 0 : ((P.b.ws || 0) + (P.b.wsm || 0)) / 100;   /* TESTED 2026-10-28: AoE hamesha weakspot, WS crit ke andar jama */
+    const base = (P.white || 0) * pct, hit = base * (1 + ws), avg = base * (1 + ws + cr * cd);
+    P.aoeT = {tested: '2026-10-28', every: n, hit: Math.round(hit), crit: Math.round(base * (1 + ws + cd)), avg: Math.round(avg), perShot: Math.round(avg / n)};
+    if (P.shotTotalAvg != null) P.shotTotalAvg = Math.round(P.shotTotalAvg + avg / n);
+    return P; };
+})();
+
+/* ===== Fix 14 — PDW90 Holographic Resonance: POORA MAGAZINE — TESTED 2026-10-28 (user ne approve kiya; notes/weapons/PDW90 Holographic Resonance.md) =====
+   Game tests (dummy, har hit exact; total ±0.7% jab AoE crit ginti game wali ho):
+     Rejuvenating 265,426 | Savior Pants 350,946 | Deadshot 416,671 | poora cradle mag 1 505,569 / 7 AoE.
+   Rules (sab game se):
+   - Attack = card x (1 + Style% / 1.15): 294 x (1 + 0.20/1.15) = 345 (panel). Bounty Hunter: + card x 2% (ek target = 1 stack) = 351.
+   - Goli (marked) = Attack x (1+W) x (1 + Other + Earthly 30 [+ Shield Protection 10 jab shield >40%]) x 1.16 (Bull's Eye 8 + Vuln Amp 8).
+     Bina mark goli: Other mein Earthly 30 nahi, x1.16 nahi. Shuru ki ~4 goli bina mark (20% chance).
+   - Crit = x (1 + CD + vs Bull's Eye CD [Targeted 25 + Vuln Amp 18] + Deadshot). Deadshot <Violent> L8: 4% har crit, max 36 (text 5/45; game 4/36).
+   - AoE har 11 hit = marked goli (bina crit) x 8 x (1 + WS 30 + Vuln Amp 12 + Marked Strike 20 [+ CD agar crit]); har AoE 2 goli reserve se mag mein.
+   - Weapon bucket: mods + PWM 15 + Tactical Combo 15 (reload ke 4s) + Savior shield 10 + Savior 5/stack (max 4) + Rush Hour 4 har 10% HP + Momentum Up 30 (doosra aadha).
+   - Savior 3pc: har 0.5s HP x0.92, shield 5% har dafa; 9 dafa (shield 45% > 40%) ke baad band. Momentum Up pehla aadha Fire Rate +10%.
+   - Forsaken Giant (Pro, HP 801,575): goli body ~1% (DR ~99%), AoE ~dummy jaisa -> damage ~sirf AoE. (Giant tests 28 Oct)
+   ANDAZA: MAG jab panel se na mile (4 panel points: 57/64/69/72). Low HP mags (shield khatam) model NAHI. */
+(function(){
+  const TESTED = '2026-10-28';
+  const num = (s, re) => { const m = String(s || '').match(re); return m ? +m[1] : 0; };
+  const _obPanelP = obPanel;
+  obPanel = function(B){ const P = _obPanelP(B); if (!P || !P.b) return P; const w = WEAPONS.find(x => x.name === B.w);
+    if (!w || w.name !== 'Holographic Resonance') return P;
+    try {
+      const sa = +B.sa || 0, card = P.atk / (1 + sa / 100), atk0 = card * (1 + sa / 100 / 1.15);
+      const cradle = B.cradle || [], has = n => cradle.indexOf(n) >= 0;
+      const mods = Object.keys(B.mods || {}).map(k => Object.assign({slot: k}, B.mods[k])).filter(m => m && m.n);
+      let W = 0, CD = 0, O = 0, CR = 0, CDbe = 0, WSbe = 0, WSm = 0, MAGp = 0, momentum = false, targeted = false, deadshot = 0, critBoost = 0, rush = false, vamp = false;
+      mods.forEach(m => { const L = obModLines(m) || [];
+        L.forEach((l, i) => { const t = l.t || '';
+          if (l.core) {
+            if (/Momentum Up|first 50% of the magazine/i.test(m.n + t)) momentum = true;
+            if (/When hitting marked enemies, Crit Rate/i.test(t)) targeted = true;
+            if (/Each Crit Hit by non-melee weapons grants/i.test(t)) deadshot = (+m.lv === 8) ? 4 : num(t, /\+ ?([\d.]+)% Crit DMG/);   /* TESTED L8 = 4 (text 5) */
+            if (/^Crit Rate \+ ?([\d.]+)%/i.test(t)) critBoost = num(t, /Crit Rate \+ ?([\d.]+)%/i) + (m.shiny ? 2 : 0);   /* shiny Flash Effect: Crit Rate +2 (TESTED) */
+            if (/Every 10% HP loss/i.test(t)) rush = true;
+            if (/The Bull's Eye adds Vulnerability/i.test(t)) vamp = true;
+            if (/^Weakspot DMG \+ ?([\d.]+)%\.?$/i.test(t)) WSm += num(t, /([\d.]+)%/);   /* Weakspot DMG Boost core (AoE hamesha WS) — ANDAZA, test nahi */
+            return; }
+          if (/^Weapon DMG \+ ?([\d.]+)%$/i.test(t)) W += num(t, /([\d.]+)%/);
+          else if (/^Crit DMG \+ ?([\d.]+)%$/i.test(t)) CD += num(t, /([\d.]+)%/);
+          else if (/^Crit Rate \+ ?([\d.]+)%$/i.test(t)) CR += num(t, /([\d.]+)%/);
+          else if (/DMG Boost by \+ ?([\d.]+)%/i.test(t)) O += num(t, /\+ ?([\d.]+)%/);
+          else if (/Crit DMG on targets with The Bull's Eye/i.test(t)) CDbe += num(t, /\+ ?([\d.]+)%/);
+          else if (/Weakspot DMG on targets with The Bull's Eye/i.test(t)) WSbe += num(t, /\+ ?([\d.]+)%/);
+          else if (/^Magazine Capacity \+ ?([\d.]+)%/i.test(t)) MAGp += num(t, /([\d.]+)%/);
+          else if (/^Weakspot DMG \+ ?([\d.]+)%$/i.test(t)) WSm += num(t, /([\d.]+)%/);   /* suffix WS -> AoE WS (bucket TESTED, ye line test nahi) */
+        }); });
+      const arm = B.armor || {}, names = OB_SLOTS.map(k => arm[k] && arm[k].n).filter(Boolean);
+      const cnt = re => names.filter(n => re.test(n)).length;
+      const savior = cnt(/^Savior /), lone = cnt(/^Lonewolf /), earthly = names.some(n => /^Earthly Boots/.test(n));
+      const st = k => +(((w.st || []).find(r => r[0] === k) || [0, 0])[1] + '').replace('%', '');
+      const crS = st('Crit Rate') + (+B.cr || 0) + critBoost + CR + (lone >= 2 ? 5 : 0);       /* panel 43.4 = 21.4 + 15 + Flash 2 + Lonewolf 5 (Flash: shiny, yahan nahi) */
+      const cdS = st('Crit DMG') + CD;                                                     /* panel 117 = 45 + 72 */
+      const wsAoE = st('Weakspot DMG') + WSbe + WSm + (has('Marked Strike') ? 20 : 0);
+      const wS = W + (has('Precision Weapon Mastery') && w.cls === 'smg' ? 15 : 0);
+      const mag = +B.mag || Math.round(st('MAG') * (1 + (MAGp + (sa === 20 ? -25 : 0)) / 100) * (1 + (lone >= 1 ? 0.10 : 0)));   /* TESTED 28 Oct: round(base x (1 + mods MAG% + style MAG%) x (1 + set MAG Bonus)) — P90 57/64/69/72, AWS 9, bow 2 */
+      const o = {atk: atk0, bhAdd: has('Bounty Hunter') ? atk0 * 0.02 / 1.15 : 0,   /* TESTED 28 Oct (AWS 9 goli exact): Attack x (1 + 2%/1.15); P90 351 bhi */ w: wS, cd: cdS, o: O, cr: crS, crBE: 20 + (targeted ? 10 : 0), cdBE: CDbe + (targeted ? 25 : 0),
+        oBE: earthly ? 30 : 0, vuln: 8 + (vamp ? 8 : 0), wsAoE, fr: st('Fire Rate') || 900, mag, momentum, rush, deadshot, tc: has('Tactical Combo'), sp: has('Shield Protection'),
+        savior2: savior >= 2, savior3: savior >= 3, unmarked: 4};
+      const sim = (o) => { let ammo = o.mag, n = 0, t = 0, tot = 0, aoeTot = 0, aoeN = 0, cons = 0, last = -9, k = 0, since = 0;
+        const fr1 = o.fr * (o.momentum ? 1.1 : 1) / 60, fr2 = o.fr / 60;
+        while (ammo > 0 && n < 2000) { const first = o.momentum && ammo > o.mag / 2; t += 1 / (first ? fr1 : fr2); ammo--; n++;
+          if (o.savior3 && cons < 9 && t - last >= 0.5) { cons++; last = t; }
+          const Wt = (o.w + (o.savior2 && cons > 0 ? 10 : 0) + (o.savior3 ? Math.min(cons, 4) * 5 : 0) + (o.rush ? Math.floor((1 - Math.pow(0.92, cons)) * 10 + 1e-9) * 4 : 0)
+            + (o.tc && t <= 4 ? 15 : 0) + (o.momentum && !first ? 30 : 0)) / 100;
+          const sp = o.sp && cons >= 9 ? 0.10 : 0, marked = n > o.unmarked, A = o.atk + (marked ? o.bhAdd : 0);
+          const cd = o.cd / 100 + (marked ? o.cdBE / 100 : 0) + (o.deadshot ? Math.min(k, 9) * o.deadshot / 100 : 0), cr = Math.min(1, (o.cr + (marked ? o.crBE : 0)) / 100);
+          const mb = A * (1 + Wt) * (1 + o.o / 100 + o.oBE / 100 + sp) * (1 + o.vuln / 100);
+          const base = marked ? mb : A * (1 + Wt) * (1 + o.o / 100 + sp);
+          tot += base * (1 + cr * cd); if (o.deadshot) k += cr;
+          if (++since >= 11) { since = 0; aoeN++; const crm = Math.min(1, (o.cr + o.crBE) / 100); const a = mb * 8 * (1 + o.wsAoE / 100 + crm * cd); tot += a; aoeTot += a; ammo += 2; } }
+        return {shots: n, aoe: aoeN, time: +t.toFixed(2), total: Math.round(tot), aoeTotal: Math.round(aoeTot)}; };
+      const r = sim(o), GIANT = 801575;
+      const giantPerMag = r.aoeTotal * 1.0 + (r.total - r.aoeTotal) * 0.01;   /* Giant AoE ~dummy jaisa (33-48k vs 37-46k); 1.0 se 3.6 mag = game ~3.5 */
+      P.atk = atk0;
+      P.p90T = {tested: TESTED, attack: Math.round(atk0), attackBH: Math.round(atk0 + o.bhAdd), mag, magAndaza: false, magRule: 'TESTED 28 Oct', panel: {cr: +crS.toFixed(1), cd: cdS, w: +wS.toFixed(1), o: O, wsAoE},
+        mag1: r, perShot: Math.round(r.total / r.shots),
+        giant: {hp: GIANT, perMag: Math.round(giantPerMag), mags: +(GIANT / giantPerMag).toFixed(1), note: 'Forsaken Giant Pro: goli ~1%, AoE ~dummy jaisa (bina Voodoo, bina weakspot). Game: ~3.5 mag / ~32s; Voodoo + jump: 2 mag / ~16s'},
+        notes: 'Low HP mags (shield khatam) model nahi. Shiny Crit Boost: mods.gloves.shiny = true.'};
+      P.shotTotalAvg = P.p90T.perShot;
+    } catch (e) { P.p90T = {error: String(e && e.message || e)}; }
+    return P; };
+})();
+
+/* ===== Fix 14 — FORMULA FRAME (dhaancha) — TESTED 2026-10-28 (Bow + P90, dono weapons par same) =====
+   Har cheez kisi ek BUCKET mein jati hai; naam badalta hai, jagah nahi. Game tests (notes/weapons/*.md):
+     SEEDHA HIT  = Attack x (1 + Weapon) x (1 + Other) x (1 + Vulnerability) ; crit par x (1 + Crit DMG)
+     KEYWORD HIT = bina-crit base hit x keyword% x (1 + keyword bucket) ; crit par x (1 + WS + Crit DMG)  (WS crit ke ANDAR jama)
+                   Bow Echo = bina-crit bounce x 8 ; P90 AoE = bina-crit goli x 8 (AoE hamesha weakspot)
+   BUCKETS (sab JAMA, apne bucket ke andar):
+     a  Attack%   : Style (P90 Assault 20 /1.15), Bounty Hunter 2% (card)
+     w  Weapon    : mods "Weapon DMG +", Weapon Mastery 15 ("when wielding"), Tactical Combo 15 (reload/switch 4s),
+                    Savior shield 10, Savior 5/stack (max 4), Rush Hour 4 har 10% HP, Momentum Up 30 (doosra aadha), Bounty Hunter renew 3/stack (ANDAZA)
+     s  Status    : Weapon Mastery 15 (Damage +15% = Weapon + Status, KVD), Savior, Rush Hour, Status Enhancement 15 (3s WS ke baad)
+     o  Other     : mods "DMG Boost +", Shield Protection 10 (shield >40%), Earthly Boots 30 (Bull's Eye target)
+     cr Crit Rate : base + calibration + mods + sets (Lonewolf 2pc 5) + Flash (shiny Crit Boost) 2 + Bull's Eye 20/Targeted 10 (marked)
+     cd Crit DMG  : base + mods + Bull's Eye (Targeted 25, Vuln Amp 18) + Deadshot (L8: 4/crit, max 36) + Critical Surge 15/stack (mag khali) + FMA 20
+     ws WS        : base + mods + hides + Marked Strike 20 / Vuln Amp 12 (sirf Bull's Eye target)
+     v  Vuln      : ALAG zarb — Bull's Eye 8 (+8 Vuln Amp), Voodoo x1.6
+     k  keyword   : Bow bounce: full charge 20, Super Bullet, Deadly Combo 25, Bounce Rampage 5/stack
+   STATIC PANEL (game "Battle" list) = sirf be-shart lines. Is block ke sudhar (game panel saboot):
+     1. Momentum Up core ("first 50% of the magazine ... next 50%") static mein NAHI (P90 panel W 27.6, engine 57.6 deta tha).
+     2. Shart wali hide (Starfall Cowhide "when Stamina >120 x2 airborne", Rabbit 4pc mid-air) static mein NAHI (P90 panel, engine +16).
+     3. Shiny Crit Boost: Flash Effect Crit Rate +2 (P90 panel 43.4).
+     4. Deadshot L8: 4% har crit, max 36 (panel CD 153 = 117 + 36). Doosre level: text wala (ANDAZA). */
+(function(){
+  const _fxpFR = fxParse;
+  fxParse = function(t, pref){ const s = String(t || '');
+    if (FX_STATIC && /\bmagazine\b/i.test(s) && /\b(first|next|remaining)\b/i.test(s)) return [];          /* sudhar 1 */
+    return _fxpFR(t, pref); };
+  const HIDE_COND = /\b(when|while|airborne|mid-?air|stamina|x2|above|below|in the Dream Zone)\b/i;
+  const _obFxFR = obFx0;
+  obFx0 = function(B){ if (!B || !FX_STATIC) return _obFxFR(B);
+    const B2 = Object.assign({}, B, {armor: {}});
+    OB_SLOTS.forEach(k => { const a = B.armor && B.armor[k]; if (!a) return; const h = a.hide && HA_HIDES.find(x => x[0] === a.hide);
+      B2.armor[k] = (h && HIDE_COND.test(h[1] || '')) ? Object.assign({}, a, {hide: a.hide + ' ·s'}) : a; });             /* sudhar 2 */
+    return _obFxFR(B2); };
+  const _obPanelFR = obPanel;
+  obPanel = function(B){ const P = _obPanelFR(B); if (!P || !P.b) return P;
+    try {
+      const gm = B.mods && B.mods.gloves;
+      if (gm && gm.shiny && gm.n === 'Crit Boost') { P.b.cr = (P.b.cr || 0) + 2; if (P.sb) P.sb.cr = (P.sb.cr || 0) + 2; }                 /* sudhar 3 */
+      const pm = B.mods && B.mods.bottoms;
+      if (pm && pm.n === 'Deadshot' && +pm.lv === 8 && P.b) { P.b.cd = (P.b.cd || 0) - 45 * 0.6 + 36 * 0.6; }                            /* sudhar 4 (weight 0.6 engine wala) */
+      P.frame = {tested: '2026-10-28', note: 'Formula frame: Bow + P90 tests; buckets upar comment mein'};
+    } catch (e) {}
+    return P; };
+})();
+
+/* ===== Fix 14 — ARMOR SLOT se pehchan, NAAM se nahi (user 28 Oct) =====
+   Helmet slot ka har armor helmet hi gina jaye (Hat / Hood / Helmet / Cap — naam kuch bhi ho), isi tarah har slot.
+   Agar armor ka naam data mein na mile (misal "Lonewolf Hat"), to USI SLOT ki category mein usi SET ka piece le lo ("Lonewolf Hood").
+   Is se set ginti (Lonewolf 2pc Crit Rate +5) aur armor stats naam ke farq se nahi tootte. */
+(function(){
+  const CAT = {helmet: 'Helmet', face: 'Face', top: 'Tops', bottoms: 'Bottom', gloves: 'Handwear', shoes: 'Footwear'};
+  const cache = {};
+  const resolve = (slot, name) => { if (!name) return name; const cat = CAT[slot]; const g = GFULL[name];
+    if (g && (!cat || g.slot === cat)) return name;
+    const key = slot + '|' + name; if (key in cache) return cache[key];
+    const words = String(name).trim().split(/\s+/); let found = null;
+    for (let n = words.length - 1; n >= 1 && !found; n--) { const pre = words.slice(0, n).join(' ').toLowerCase();
+      const c = Object.keys(GFULL).filter(x => GFULL[x].slot === cat && (String(GFULL[x].set || '').toLowerCase() === pre || x.toLowerCase().startsWith(pre + ' ')));
+      if (c.length === 1) found = c[0]; }
+    return (cache[key] = found || name); };
+  const norm = B => { if (!B || !B.armor) return B; let ch = false; const A = {};
+    Object.keys(B.armor).forEach(k => { const a = B.armor[k]; const n2 = a && resolve(k, a.n); if (a && n2 !== a.n) { ch = true; A[k] = Object.assign({}, a, {n: n2, nameGame: a.n}); } else A[k] = a; });
+    return ch ? Object.assign({}, B, {armor: A}) : B; };
+  window.obArmorResolve = resolve;
+  const _p = obPanel; obPanel = function(B){ return _p(norm(B)); };
+  const _f = obFx0; obFx0 = function(B){ return _f(norm(B)); };
+})();
+
+/* ===== Fix 14 — P90: TEST SE BUILD PEHCHANO v1 (28 Oct 2026) — window.p90Identify(groups) =====
+   Input: dummy video ke hit groups waqt ki tarteeb mein (har group = ek waqt par screen ke numbers). Shart: HP full, naya mag, pehli goli bina mark.
+   Test: Deadshot video aur Rejuvenating video par sahi pehchana (Attack/Style, Weapon, Other, Earthly, Vuln Amp, Momentum, Savior+Rush Hour, Deadshot L8, WS, Crit DMG). */
+(function(){
+/* P90 "test se build pehchano" v1 — input: hit groups in time order (har group = ek waqt par screen par numbers). TESTED rules 28 Oct. */
+function p90Identify(groups, opt){ opt = opt || {};
+  const out = {pakka: [], andaza: [], dataNahi: [], steps: []};
+  const all = groups.flat();
+  const u = groups[0][0];                                      // pehli goli: bina mark, bina crit
+  // 1) har group mein nc / crit / AoE pehchano (ratio se)
+  const G = groups.map(g => { const s = [...new Set(g)].sort((a,b)=>a-b); const r = {nc:null, crit:[], aoeN:[], aoeC:[]};
+    for (const x of s) { if (r.nc == null) { if (s.some(y => y/x > 2.0 && y/x < 3.6) || s.some(y => y/x > 10.5)) r.nc = x; continue; }
+      const q = x / r.nc; if (q > 2.0 && q < 3.6) r.crit.push(x); else if (q > 10.5 && q < 15.5) r.aoeN.push(x); else if (q > 20 && q < 40) r.aoeC.push(x); }
+    return r; }).filter(r => r.nc);
+  // 2) Crit DMG (crit / nc) aur WS (AoE)
+  const cds = G.flatMap(r => r.crit.map(c => +(c / r.nc - 1).toFixed(3)));
+  const wsN = G.flatMap(r => r.aoeN.map(a => +(a / r.nc / 8 - 1).toFixed(3)));
+  const wsC = G.flatMap(r => r.aoeC.map(a => ({tot: a / r.nc / 8 - 1, cd: Math.max(...r.crit.map(c => c / r.nc - 1), 0)}))).filter(x => x.cd > 0).map(x => +(x.tot - x.cd).toFixed(3));
+  // 3) c = Attack x (1+Other+Earthly) x vuln. Marked groups = crit ratio >= 2.45 ya AoE wala group.
+  const isM = r => r.aoeN.length || r.aoeC.length || r.crit.some(c => c / r.nc >= 2.45);
+  const MG = G.filter(isM), ncs = [...new Set(MG.map(r => r.nc))];
+  const ST = [4, 5, 10, 15, 30], CNT = new Map([[0, 0]]);
+  for (const a of [0, ...ST]) for (const b of [0, ...ST]) for (const c2 of [0, ...ST]) { const v = a + b + c2, k = (a > 0) + (b > 0) + (c2 > 0); if (!CNT.has(v) || CNT.get(v) > k) CNT.set(v, k); }
+  const SL = [...CNT.keys()];
+  const near = d => { let bd = 1e9, bk = 0; for (const x of SL) { const e = Math.abs(x - d); if (e < bd - 1e-9 || (Math.abs(e - bd) < 1e-9 && CNT.get(x) < bk)) { bd = e; bk = CNT.get(x); } } return Math.max(0, bd - 0.15) + 0.03 * Math.max(0, bk - 1); };
+  let best = null;
+  for (const A of [294, 345, 345.13, 351]) for (let O = 0; O <= 45; O += 1.5) for (const E of [0, 30]) for (const V of [1, 1.08, 1.16]) {
+    const W0 = (u / (A * (1 + O / 100)) - 1) * 100; if (W0 < 0 || W0 > 120) continue;
+    const c = A * (1 + (O + E) / 100) * V; const Ws = ncs.map(n => (n / c - 1) * 100);
+    if (Ws.some(w => w < W0 - 0.5 || w > 260)) continue;
+    const L = [W0, ...Ws].sort((a,b)=>a-b); let err = 0, nL = 0;
+    for (let i = 1; i < L.length; i++) { const d = L[i] - L[i-1]; if (d < 0.3) continue; err += near(d); nL++; }
+    err = err / Math.max(1, nL);
+    if (O % 3) err += 0.1; if (A > 350) err += 0.05; err += 0.004 * nL;
+    if (!best || err < best.err - 1e-9) best = {err, A, O, E, V, c, W0, Ws}; }
+  if (best) {
+    out.static = {attack: Math.round(best.A), other: best.O, earthly: best.E, vuln: best.V, W0: +best.W0.toFixed(1)};
+    out.pakka.push(`Pehli goli ${u}: Attack ${Math.round(best.A)} x (1 + Weapon ${best.W0.toFixed(1)}) x (1 + Other ${best.O})` + (best.A > 300 ? ' -> Attack Style (Assault +20)' : ''));
+    if (best.V > 1.1) out.pakka.push('Bull\'s Eye vuln 16 -> Vulnerability Amplifier <The Bull\'s Eye> weapon mod'); else if (best.V > 1) out.pakka.push('Bull\'s Eye vuln 8 (bina Vuln Amp)');
+    if (best.E) out.pakka.push('Marked target par Other +30 -> Earthly Boots (Key Effect)');
+    // 4) Weapon ladder
+    const lad = [...new Set(best.Ws.map(w => Math.round(w * 10) / 10))].sort((a,b)=>a-b);
+    out.weaponLadder = lad; const d = []; for (let i = 1; i < lad.length; i++) d.push(+(lad[i] - lad[i-1]).toFixed(1));
+    out.weaponSteps = d;
+    if (d.some(x => Math.abs(x - 30) < 0.6)) out.pakka.push('Weapon +30 mag ke beech -> Momentum Up (helmet)');
+    if (lad.length > 3 && d.filter(x => Math.abs(x - 5) < 0.6 || Math.abs(x - 4) < 0.6).length >= 2) out.pakka.push('Weapon +5 / +4 qadam ba qadam (0.5s) -> Savior 3pc + Rush Hour (HP girti)');
+    if (d.some(x => Math.abs(x - 10) < 0.6) || (best.W0 + 10 <= lad[0] + 0.6)) out.andaza.push('Weapon +10 -> Savior shield (2pc)');
+    const tc = lad[0] - best.W0; if (Math.abs(tc - 15) < 0.6) out.andaza.push('Shuru mein Weapon +15 = shield 10 + Savior 5, ya Tactical Combo 15 (dono mumkin)');
+    if (Math.abs(tc - 30) < 0.6) out.andaza.push('Shuru mein Weapon +30 = Tactical Combo 15 + shield 10 + Savior 5');
+    // Shield Protection: nc jo kisi ladder level par Other +10 se bane
+    const sp = ncs.some(n => { const w = (n / (best.A * (1 + (best.O + best.E + 10)/100) * best.V) - 1) * 100; return Math.abs(w * 5 - Math.round(w * 5)) < 0.05 && Math.abs(w - lad[lad.length-1]) < 0.3; });
+    if (sp) out.andaza.push('Aakhir mein Other +10 -> Shield Protection (shield 40%+)');
+  }
+  // 5) Crit DMG ladder -> Deadshot
+  const isM2 = r => r.aoeN.length || r.aoeC.length || r.crit.some(c => c / r.nc >= 2.45);
+  const cdsM = G.filter(isM2).flatMap(r => r.crit.map(c => c / r.nc - 1).filter(x => x >= 1.45));
+  const cdU = [...new Set(cdsM.map(x => Math.round(x * 100)))].sort((a,b)=>a-b);
+  out.critLadder = cdU; const cmin = cdU[0], cmax = cdU[cdU.length-1];
+  if (cdU.length > 1) { const steps = cdU.slice(1).map((x,i) => x - cdU[i]); const g = steps.reduce((a,b)=>{ while(b){ [a,b]=[b,a%b]; } return a; });
+    if (g >= 3 && g <= 6 && cmax - cmin >= 2 * g) { const cnt = cdsM.filter(x => Math.abs(x * 100 - cmax) < 1).length;
+      out.pakka.push(`Crit DMG har crit par +${g} barhta, ${cmax / 100 + 1} par ruk jata (${cnt} hits) -> Deadshot (pants)${g === 4 ? ' L8: 4% x 9 = 36' : ''}`);
+      out.andaza.push(`Panel Crit DMG + Bull's Eye CD = ${((cmax - 9 * g) / 100 + 1).toFixed(2)} (agar 9 stack)`); } }
+  out.critDMG = {base: +(cmin/100).toFixed(2), max: +(cmax/100).toFixed(2), note: 'panel CD + Bull\'s Eye CD (Targeted 25 + Vuln Amp 18)'};
+  if (wsN.length || wsC.length) { const ws = wsN.length ? wsN : wsC; const m = ws.reduce((a,b)=>a+b,0)/ws.length; out.wsAoE = +(m*100).toFixed(1);
+    out.pakka.push(`AoE WS ${out.wsAoE} = 30 (weapon)` + (m > 0.40 ? ' + 12 (Vuln Amp)' : '') + (m > 0.60 ? ' + 20 (Marked Strike cradle)' : '')); }
+  const UG = G.filter(r => !isM2(r) && r.crit.length), savior = out.pakka.some(x => /Savior/.test(x));
+  if (UG.length && !savior && cdU.length) { const cdP = UG[0].crit[0] / UG[0].nc - 1, be = cdU[0] / 100 - cdP;
+    out.pakka.push(`Panel Crit DMG ${Math.round(cdP * 100)} (bina mark crit) ; Bull's Eye par +${Math.round(be * 100)}` + (Math.abs(be - 0.43) < 0.02 ? ' = Targeted Strike 25 + Vuln Amp 18' : '')); }
+  out.dataNahi.push('Kaunsi suffix line kis slot par (Weapon / Crit DMG / Boost jor hi dikhta hai)', 'Armor ke asal piece jin ka set effect dummy par nahi', 'Hide', 'Boss / Deviant wale effects');
+  return out; }
+window.p90Identify = p90Identify;
+})();
+
+/* ===== Fix 14 — BOW: TEST SE BUILD PEHCHANO v1 (28 Oct 2026) — window.bowIdentify(arrows, panel) =====
+   Input: har teer {seedha:[value,'w'|'o'], echo, bounces:[6]}; panel {cd, ws} optional. Tests 5, 6, 8 par chalaya (notes/weapons/Burden of Betrayal.md). */
+(function(){
+/* Bow (Burden of Betrayal) "test se build pehchano" v1 — input: har teer {seedha:[value,'w'|'o'], echo, bounces:[...]}, optional panel {cd, ws}. TESTED rules 25 Oct. */
+function bowIdentify(arrows, panel){ panel = panel || {};
+  const out = {pakka: [], andaza: [], dataNahi: [], perArrow: []};
+  const A = arrows.map((a, i) => { const bs = [...a.bounces].sort((x,y)=>x-y), b0 = bs[0];
+    const R = [...new Set(bs.map(b => +(b / b0).toFixed(3)))].sort((x,y)=>x-y);
+    const crit = R.filter(r => r > 2.0); const cm = crit.length && crit[0] >= 2.35 ? crit[0] : null;
+    const cmw = crit.find(r => cm && r - cm > 0.3 && r - cm < 0.8); const ncw = R.find(r => r > 1.3 && r < 1.8);
+    const hasNc = R.some(r => r === 1) && cm != null;
+    const cmB = cm ? b0 * cm : null, echoX = cmB ? a.echo / cmB : null;
+    return {i: i + 1, b0, cm: hasNc ? cm : null, ws: hasNc && cmw ? +(cmw - cm).toFixed(3) : null, echoX: echoX ? +echoX.toFixed(3) : null, seedha: a.seedha, bounces: bs}; });
+  // Precision Bounce: Echo / crit bounce ~ 8/2.25 = 3.56 (bounce x2.25, Echo par nahi)
+  const pb = A.filter(x => x.echoX && Math.abs(x.echoX - 8 / 2.25) < 0.12).map(x => x.i);
+  const e8 = A.filter(x => x.echoX && Math.abs(x.echoX - 8) < 0.1).map(x => x.i);
+  if (e8.length) out.pakka.push(`Echo = crit bounce x 8 (teer ${e8.join(', ')}): 4 Echo stack x 80% / 0.4, Echo crit`);
+  if (pb.length) out.pakka.push(`Teer ${pb.join(', ')}: bounce x2.25, Echo par nahi -> Precision Bounce (mask mod), har teesra teer`);
+  else out.pakka.push('Koi teer x2.25 nahi -> Precision Bounce mask mod NAHI');
+  // Crit ladder -> Critical Surge, Super Bullet
+  const cms = A.filter(x => x.cm).map(x => ({i: x.i, cm: x.cm}));
+  if (cms.length >= 2) { const st = cms.slice(1).map((x, j) => +((x.cm - cms[j].cm) / (x.i - cms[j].i)).toFixed(3));
+    const stk = i => Math.min(i - 1, 3), bs0 = cms.map(x => x.cm - 0.15 * stk(x.i)), b0m = bs0.reduce((a,b)=>a+b,0) / bs0.length;
+    let surge = new Set(cms.map(x => stk(x.i))).size >= 2 && bs0.every(b => Math.abs(b - b0m) < 0.02), fma = false;
+    if (!surge) { const bs1 = cms.map(x => x.cm - 0.15 * stk(x.i) - (x.i >= 2 ? 0.20 : 0)), m1 = bs1.reduce((a,b)=>a+b,0) / bs1.length;
+      if (bs1.every(b => Math.abs(b - m1) < 0.02) && cms.some(x => x.i === 1)) { surge = true; fma = true; } }
+    if (fma) out.pakka.push('Teer 2 se crit +20 aur -> First-Move Advantage (helmet): lagatar teer, reload ke 2s ke andar');
+    if (surge) out.pakka.push(`Bounce crit har teer +15, 3 stack par ruka (${cms.map(x => x.cm).join(' -> ')}) -> Critical Surge (pants) 15/stack (mag khali = teer)`);
+    const base = cms[0].cm - (surge ? 0.15 * Math.min(cms[0].i - 1, 3) : 0) - (fma && cms[0].i >= 2 ? 0.20 : 0);
+    out.bounceCritBase = +base.toFixed(2);
+    if (panel.cd != null) { const extra = Math.round((base - 1 - panel.cd / 100) * 100);
+      out.pakka.push(`Bounce crit base ${base.toFixed(2)} = 1 + panel CD ${panel.cd} + ${extra}` + (Math.abs(extra - 45) < 2 ? ' -> Super Bullet (Bounce Crit DMG 25 + suffix 20)' : Math.abs(extra - 60) < 2 ? ' -> Super Bullet 45 + mask Bounce Crit DMG 15 (<Bounce> suffix)' : Math.abs(extra - 80) < 2 ? ' -> Super Bullet 45 + mask <Bounce> 15 + First-Move Advantage 20 (teer 1 ka bina-crit bounce nahi mila, is liye FMA alag nahi hua)' : ''));
+    } else out.andaza.push(`Bounce crit base ${base.toFixed(2)} = 1 + panel CD + bounce CD (panel CD do to alag ho jayega; 45 = Super Bullet)`); }
+  const wsv = A.map(x => x.ws).filter(x => x != null); if (wsv.length) { const ws = wsv.reduce((a,b)=>a+b,0) / wsv.length; out.bounceWS = +(ws * 100).toFixed(1);
+    out.pakka.push(`Bounce WS ${out.bounceWS} crit ke andar jama` + (panel.ws != null ? ` = panel WS ${panel.ws} + ${(out.bounceWS - panel.ws).toFixed(1)}` + (Math.abs(out.bounceWS - panel.ws - 12) < 1 ? ' -> Super Bullet suffix Bounce WS 12' : '') : ' (= panel WS + Super Bullet 12 agar laga)')); }
+  // Bounce bucket: bina-crit bounce / safed seedha / 0.4
+  const bk = A.filter(x => x.seedha && x.seedha[1] === 'w' && x.cm).map(x => ({i: x.i, k: +((x.b0 / (pb.includes(x.i) ? 2.25 : 1)) / x.seedha[0] / 0.4 - 1).toFixed(3)}));
+  if (bk.length) { out.bounceBucket = bk; const m = bk.reduce((a,b)=>a+b.k,0) / bk.length;
+    out.andaza.push(`Bounce bucket ~${(m * 100).toFixed(1)} = full charge 20 + Deadly Combo 25 + mods (Super Bullet 4.8 / mask) (+ ~2.4% seedha falloff, pakka nahi)`);
+    if (bk.length < 2) out.dataNahi.push('Bounce Rampage: kam se kam 2 teer ka SAFED seedha chahiye (bucket ka barhna dekhne ke liye)');
+    else if (bk[bk.length-1].k - bk[0].k > 0.08) out.pakka.push('Bounce bucket teer ke saath barhta -> Bounce Rampage (5/stack)'); else out.pakka.push('Bounce bucket barabar -> Bounce Rampage NAHI'); }
+  out.perArrow = A.map(x => ({teer: x.i, b0: x.b0, critZarb: x.cm, ws: x.ws, echoX: x.echoX}));
+  out.dataNahi.push('Seedha hit ka Attack / Weapon jor (ek teer mein ek hi seedha)', 'Kaunsi suffix line kis slot par', 'Armor pieces jin ka set effect dummy par nahi', 'Pehle teer ka Echo (7.2x) — wajah data nahi');
+  return out; }
+window.bowIdentify = bowIdentify;
+})();
+
+/* ===== Fix 14 — AWS.338 Bullseye: TESTED + APPROVED 2026-10-28 (notes/weapons/AWS.338 Bullseye.md) =====
+   Game tests (P90 wala gear): body 9 goli 146,820 (formula 0%), head 9 goli bina Bounty Hunter 374,016 (+0.85%), BH ke saath 382,912.
+   Rules (sab game se):
+   - Goli = Attack x (1+W) x (1 + Other [+ Earthly 30 marked] [+ Shield Protection 10]) x (1.16 marked: BE 8 + Vuln Amp 8)
+   - Head bina crit x (1 + WS), crit x (1 + WS + CD) — WS crit ke ANDAR. WS = 95 + AWS 25/hit (pehli goli 0, max 4) + marked (Vuln Amp 12 + Marked Strike 20).
+   - CD marked par + Targeted 25 + Vuln Amp 18; Deadshot L8 4/crit.
+   - Mark: switch ke baad pehli goli lagati (us goli par asar NAHI), ~13.8s; head par har WS hit 70% renew. Body par renew nahi.
+   - Bounty Hunter: pehla mark -> Attack x (1 + 2%/1.15) 15s; renew -> Weapon +3/stack 10s (max 5).
+   - W: mods + PWM 15 + Tactical Combo 15 (switch ke 4s) + shield 10 (pehli HP katne ke baad) + Savior 5/stack (max 4) + Rush Hour 4 har 10% HP + Momentum 30 (mag ka doosra aadha).
+   - Crumbly Bread 'all Weapon DMG +25%' = Weapon JAMA (opts.foodW = 25). Bread + BH test: +0.58%.
+   - Savior: goli n par n-1 dafa HP x0.92 (goliyan 0.5s se door). MAG = round(5 x (1+MAG%) x (1+set MAG Bonus)). */
+(function(){
+  window.awsSim = function(B, o){ o = o || {}; const P = obPanel(B); if (!P || !P.sb) return null;
+    const cr0 = (B.cradle || []), has = n => cr0.indexOf(n) >= 0;
+    const L = (B.mods ? Object.keys(B.mods).map(k => Object.assign({slot: k}, B.mods[k])) : []).map(m => (obModLines(m) || []).map(l => l.t).join(' | ')).join(' || ');
+    const names = OB_SLOTS.map(k => B.armor && B.armor[k] && (window.obArmorResolve ? obArmorResolve(k, B.armor[k].n) : B.armor[k].n)).filter(Boolean);
+    const savior = names.filter(n => /^Savior /.test(n)).length, earthly = names.some(n => /^Earthly/.test(n));
+    const momentum = /first 50% of the magazine/i.test(L), rush = /Every 10% HP loss/i.test(L), deadshot = /Each Crit Hit by non-melee/i.test(L) ? 4 : 0;
+    const targeted = /When hitting marked enemies, Crit Rate/i.test(L), vamp = /The Bull's Eye adds Vulnerability/i.test(L);
+    const A0 = P.atk, Ab = has('Bounty Hunter') ? A0 * (1 + 0.02 / 1.15) : A0;
+    const W0 = P.sb.w, O0 = P.sb.o, CD0 = P.sb.cd / 100, CR0 = P.sb.cr / 100, WS0 = P.sb.ws / 100, mag = P.mag || 9;
+    const n = o.shots || 9, dt = o.interval || 1.5, head = o.head !== false && o.target !== 'body', hp0 = o.hpStart || 1;
+    let tot = 0, hits = [], k = 0, bhw = [], markT = -99;
+    for (let i = 1; i <= n; i++) { const t = (i - 1) * dt + (o.firstAt || 0.6), cons = savior >= 3 ? i - 1 : 0, hpLoss = 1 - hp0 * Math.pow(0.92, cons);
+      const marked = i >= 2 && (head || t - markT <= 13.8); if (i === 1) markT = t;
+      if (head && i >= 2) bhw.push(t);                                     /* renew: 70% -> expected */
+      bhw = bhw.filter(x => t - x < 10);
+      const bhW = has('Bounty Hunter') ? (head ? Math.min(i, 5) : (t - (o.firstAt || 0.6) - dt < 10 ? 1 : 0)) * 3 : 0;   /* TESTED 28 Oct (bread+BH video): head goli n par n stack (max 5), body 1 stack 10s */
+      const ammoLeft = mag - (i - 1), second = momentum && ammoLeft <= mag / 2;
+      const W = (W0 + (o.foodW || 0) + (t <= 4 ? 15 : 0) + (savior >= 2 && cons > 0 ? 10 : 0) + (savior >= 3 ? Math.min(cons, 4) * 5 : 0) + (rush ? Math.floor(hpLoss * 10 + 1e-9) * 4 : 0) + (second ? 30 : 0) + (i >= 2 ? bhW : 0)) / 100;
+      const A = (i >= 2 && t <= 15.6) ? Ab : A0, sp = (has('Shield Protection') && savior >= 3 && cons >= 9) ? 0.10 : 0;
+      const base = A * (1 + W) * (1 + O0 / 100 + (marked && earthly ? 0.30 : 0) + sp) * (marked ? (1.08 + (vamp ? 0.08 : 0)) : 1);
+      const ws = head ? WS0 + 0.25 * Math.min(i - 1, 4) + (marked ? (vamp ? 0.12 : 0) + (has('Marked Strike') ? 0.20 : 0) : 0) : 0;
+      const cd = CD0 + (marked ? (targeted ? 0.25 : 0) + (vamp ? 0.18 : 0) : 0) + Math.min(k, 9) * deadshot / 100;
+      const cr = Math.min(1, CR0 + (marked && targeted ? 0.10 : 0));
+      const isCrit = o.crits ? o.crits.indexOf(i) >= 0 : null;
+      const hNc = base * (1 + ws), hCr = base * (1 + ws + cd);
+      const h = isCrit === null ? hNc + cr * (hCr - hNc) : (isCrit ? hCr : hNc);
+      k += isCrit === null ? cr : (isCrit ? 1 : 0); tot += h; hits.push(Math.round(h)); }
+    return {tested: '2026-10-28', total: Math.round(tot), hits, mag}; };
+  const _obPanelW = obPanel;
+  obPanel = function(B){ const P = _obPanelW(B); if (!P || !P.b) return P; if (B.w !== 'AWS.338 Bullseye' || P.awsT) return P;
+    try { P.awsT = {head9: null, body9: null}; } catch (e) {} return P; };
 })();
 
 load(); render();

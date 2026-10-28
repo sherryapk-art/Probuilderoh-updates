@@ -1,5 +1,5 @@
 {
-  "version": 233,
+  "version": 234,
   "url": "https://raw.githubusercontent.com/Sherryapk-art/probuilderoh-updates/main/index.html",
-  "notes": "0.14: New damage engine (counts every bounce, shrapnel, burn tick and keyword hit). Build Export (card preview and JSON code) and Import. Own Build remembers the slot you edit; tap fix for phones. Secondary & Melee combo guide. Fits the screen width (no side scrolling)."
+  "notes": "0.15: Tested formulas for PDW90 Holographic Resonance and AWS.338 Bullseye (Bounty Hunter stacks, Crumbly Bread). Magazine rule fixed (set bonus multiplies). Armor found by slot, not name. Own Build export: only 'Download Image (Gallery)' — build snapshot saved to Pictures/ProBuilderOH."
 }
