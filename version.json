@@ -1,5 +1,5 @@
 {
-  "version": 234,
+  "version": 235,
   "url": "https://raw.githubusercontent.com/Sherryapk-art/probuilderoh-updates/main/index.html",
-  "notes": "0.15: Tested formulas for PDW90 Holographic Resonance and AWS.338 Bullseye (Bounty Hunter stacks, Crumbly Bread). Magazine rule fixed (set bonus multiplies). Armor found by slot, not name. Own Build export: only 'Download Image (Gallery)' — build snapshot saved to Pictures/ProBuilderOH."
+  "notes": "0.16: Calibration uses only exact game blueprint lines and works for the whole weapon category. Engine: second weapon (Bull's Eye, e.g. AWS + Vulnerability Amplifier) keeps the mark on the target; bow Bounce/Echo; Butterfly and all deviant ultimates; Most Wanted; P90 AoE; armor mods and suffix lines by rule (Resonance, Burn Trigger Time, Battle = PvP); melee uses Melee DMG; aerial build tip. Import build removed."
 }
