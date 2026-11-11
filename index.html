@@ -2189,7 +2189,7 @@ document.addEventListener('click', e => { const b = e.target.closest && e.target
 const BG_AMKEY = {helmet:'head', face:'mask', top:'top', bottoms:'pants', gloves:'gloves', shoes:'shoes'};
 function bgModeScreen(){
   return `<div><p class="eyebrow">${esc(ui('gearH'))}</p><h2>${esc(ui('bgModeH'))}</h2><p class="lead">${esc(ui('bgModeP'))}</p></div>
-    <div class="wiz"><button class="opt" data-act="bgmode" data-v="gear"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('bgFromGear'))}</span><span class="label" style="text-transform:none">${esc(ui('bgFromGearP'))}</span></span>${ICO_ARROW}</button>
+    <div class="wiz">
     <button class="opt" data-act="bgmode" data-v="weapon"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('bgFromWpn'))}</span><span class="label" style="text-transform:none">${esc(ui('bgFromWpnP'))}</span></span>${ICO_ARROW}</button>
     <button class="opt" data-act="bgmode" data-v="own"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(curLang()==='ur'?'Own build':'Own build')}</span><span class="label" style="text-transform:none">${esc(curLang()==='ur'?'Apna weapon, tier, star aur calibration chun kar game jaisa panel dekhein':'Pick your weapon, tier, star and calibration and see a game-like panel')}</span></span>${ICO_ARROW}</button>
     <button class="opt" data-act="go" data-to="ask"><span style="display:flex;flex-direction:column;gap:2px"><span>${esc(ui('tabAsk'))}</span><span class="label" style="text-transform:none">${esc(ui('bgAskP'))}</span></span>${ICO_ARROW}</button></div>`;
@@ -2207,7 +2207,8 @@ function obBase(w){ const st = Object.fromEntries((w.st || []).map(r => [r[0].re
   return {one, mult, cr: vbNum(st['Crit Rate']) || 0, cd: vbNum(st['Crit DMG']) || 0, ws: vbNum(st['Weakspot DMG']) || 0}; }
 function obCalc(o){ const w = WEAPONS.find(x => x.name === o.w); if (!w) return null; const b = obBase(w), max = OB_RAR[o.rar] || 6, star = Math.min(+o.star || 1, max);
   const card1 = b.one * OB_STAR(star, max) * (OB_TIER[o.tier] || 1);
-  const card = card1 * (1 + (+o.wd || 0) / 100) * (o.gold ? 1.15 : 1);
+  const wGold = (o.rar || (OB_AT[o.w] || [])[0]) === 'gold'; /* x1.15 GOLD WEAPON ka hai (user), calibration ka nahi */
+  const card = card1 * (1 + (+o.wd || 0) / 100) * (wGold ? 1.15 : 1);
   const atk = card * (1 + (+o.sa || 0) / 100);
   return {w, b, max, star, card1, card, atk, cr: b.cr + (+o.cr || 0), cd: b.cd + (+o.cd || 0), ws: b.ws + (+o.ws || 0)}; }
 function ownBuild(){ const o = obState(), r = obCalc(o), ur = curLang() === 'ur';

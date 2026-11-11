@@ -1,5 +1,5 @@
 {
-  "version": 235,
+  "version": 236,
   "url": "https://raw.githubusercontent.com/Sherryapk-art/probuilderoh-updates/main/index.html",
-  "notes": "0.16: Calibration uses only exact game blueprint lines and works for the whole weapon category. Engine: second weapon (Bull's Eye, e.g. AWS + Vulnerability Amplifier) keeps the mark on the target; bow Bounce/Echo; Butterfly and all deviant ultimates; Most Wanted; P90 AoE; armor mods and suffix lines by rule (Resonance, Burn Trigger Time, Battle = PvP); melee uses Melee DMG; aerial build tip. Import build removed."
+  "notes": "0.17: Gold x1.15 multiplier now comes from the gold weapon's rarity (not the calibration Golden box). Removed the 'Build from gear' button from the Build Guide; only Own build and Build from weapon remain."
 }
